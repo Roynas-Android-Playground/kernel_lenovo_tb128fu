@@ -122,7 +122,11 @@ source "drivers/staging/gasket/Kconfig"
 
 source "drivers/staging/axis-fifo/Kconfig"
 
-source "drivers/staging/erofs/Kconfig"
+config QCA_CLD_WLAN
+	tristate "Qualcomm Atheros CLD WLAN module"
+	default n
+	help
+	  Add support for the Qualcomm Atheros CLD WLAN module
 
 source "drivers/staging/qcacld-3.0/Kconfig"
 
