@@ -373,6 +373,8 @@ KBUILD_HOSTLDFLAGS  := $(HOST_LFS_LDFLAGS) $(HOSTLDFLAGS)
 KBUILD_HOSTLDLIBS   := $(HOST_LFS_LIBS) $(HOSTLDLIBS)
 
 # Make variables (CC, etc...)
+AS		= $(CROSS_COMPILE)as
+CC		= $(CROSS_COMPILE)gcc
 CPP		= $(CC) -E
 ifneq ($(LLVM),)
 CC		= clang
