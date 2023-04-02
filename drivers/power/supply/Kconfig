@@ -648,4 +648,7 @@ config CHARGER_CROS_USBPD
 
 source "drivers/power/supply/qcom/Kconfig"
 
+#bug 692121, lishuwen.wt,ADD,20211106, add charger bring up
+source "drivers/power/supply/wt_charger/Kconfig"
+
 endif # POWER_SUPPLY

@@ -108,3 +108,5 @@ source "drivers/usb/typec/mux/Kconfig"
 source "drivers/usb/typec/altmodes/Kconfig"
 
 endif # TYPEC
+# bug 692121, lishuwen.wt,ADD,20211106, add typec
+source "drivers/usb/typec/tcpc/Kconfig"

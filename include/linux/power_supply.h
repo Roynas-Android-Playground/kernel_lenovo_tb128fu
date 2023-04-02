@@ -366,6 +366,10 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_CC_TOGGLE_ENABLE,
 	POWER_SUPPLY_PROP_FG_TYPE,
 	POWER_SUPPLY_PROP_CHARGER_STATUS,
+// bug 692121, lishuwen.wt,ADD,20211106, add charger
+	POWER_SUPPLY_PROP_VBUS_VOLTAGE,
+// ExtB oak-4542, tankaikun@wt, add 20220206, fix usb do not have diag port
+	POWER_SUPPLY_PROP_USB_SWITCH,
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT,
 	/* Properties of type `const char *' */

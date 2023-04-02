@@ -86,3 +86,5 @@ obj-$(CONFIG_AXP288_FUEL_GAUGE) += axp288_fuel_gauge.o
 obj-$(CONFIG_AXP288_CHARGER)	+= axp288_charger.o
 obj-$(CONFIG_CHARGER_CROS_USBPD)	+= cros_usbpd-charger.o
 obj-$(CONFIG_ARCH_QCOM)		+= qcom/
+#bug 692121, lishuwen.wt,ADD,20211106, add charger bring up
+obj-$(CONFIG_WT_CHARGER)		+= wt_charger/

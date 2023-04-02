@@ -56,6 +56,7 @@
 #include <linux/power_supply.h>
 #include <linux/slab.h>
 #include <linux/of.h>
+#include <linux/hardware_info.h>
 
 #include <linux/power/bq27xxx_battery.h>
 
@@ -90,6 +91,11 @@
 #define BQ27XXX_CURRENT_CONSTANT	(3570) /* 3.57 µV * 1000 */
 
 #define INVALID_REG_ADDR	0xff
+
+//+ ExtB oak-4542, tankaikun@wt, add 20220215, fix device have no diag port
+#define BATT_CAPACITY_DEFAULT_VALUE 70
+#define BATT_DEFAULT_TEMP	250
+//- ExtB oak-4542, tankaikun@wt, add 20220215, fix device have no diag port
 
 /*
  * bq27xxx_reg_index - Register names
@@ -1491,6 +1497,27 @@ static int bq27xxx_battery_read_time(struct bq27xxx_device_info *di, u8 reg)
 }
 
 /*
+ * Read an average power register.
+ * Return < 0 if something fails.
+ */
+static int bq27xxx_battery_read_pwr_avg(struct bq27xxx_device_info *di)
+{
+	int tval;
+
+	tval = bq27xxx_read(di, BQ27XXX_REG_AP, false);
+	if (tval < 0) {
+		dev_err(di->dev, "error reading average power register  %02x: %d\n",
+			BQ27XXX_REG_AP, tval);
+		return tval;
+	}
+
+	if (di->opts & BQ27XXX_O_ZERO)
+		return (tval * BQ27XXX_POWER_CONSTANT) / BQ27XXX_RS;
+	else
+		return tval;
+}
+
+/*
  * Returns true if a battery over temperature condition is detected
  */
 static bool bq27xxx_battery_overtemp(struct bq27xxx_device_info *di, u16 flags)
@@ -1586,6 +1613,8 @@ void bq27xxx_battery_update(struct bq27xxx_device_info *di)
 		}
 		if (di->regs[BQ27XXX_REG_CYCT] != INVALID_REG_ADDR)
 			cache.cycle_count = bq27xxx_battery_read_cyct(di);
+		if (di->regs[BQ27XXX_REG_AP] != INVALID_REG_ADDR)
+			cache.power_avg = bq27xxx_battery_read_pwr_avg(di);
 
 		/* We only have to read charge design full once */
 		if (di->charge_design_full <= 0)
@@ -1643,32 +1672,6 @@ static int bq27xxx_battery_current(struct bq27xxx_device_info *di,
 		/* Other gauges return signed value */
 		val->intval = (int)((s16)curr) * 1000;
 	}
-
-	return 0;
-}
-
-/*
- * Get the average power in µW
- * Return < 0 if something fails.
- */
-static int bq27xxx_battery_pwr_avg(struct bq27xxx_device_info *di,
-				   union power_supply_propval *val)
-{
-	int power;
-
-	power = bq27xxx_read(di, BQ27XXX_REG_AP, false);
-	if (power < 0) {
-		dev_err(di->dev,
-			"error reading average power register %02x: %d\n",
-			BQ27XXX_REG_AP, power);
-		return power;
-	}
-
-	if (di->opts & BQ27XXX_O_ZERO)
-		val->intval = (power * BQ27XXX_POWER_CONSTANT) / BQ27XXX_RS;
-	else
-		/* Other gauges return a signed value in units of 10mW */
-		val->intval = (int)((s16)power) * 10000;
 
 	return 0;
 }
@@ -1753,6 +1756,44 @@ static int bq27xxx_battery_voltage(struct bq27xxx_device_info *di,
 	return 0;
 }
 
+#define BATTERY_PACK_ID	0x0008
+#define NVT_BATT_ID	 0x0103
+#define SCUD_BATT_ID	 0x0102
+#define SWD_BATT_ID	0x0101
+static int bq27xxx_check_battery_id(struct bq27xxx_device_info *di)
+{
+	int ret;
+	int batt_id;
+
+	ret = bq27xxx_write(di, BQ27XXX_REG_CTRL, BATTERY_PACK_ID,  false);
+	if (ret < 0) {
+		return ret;
+	}
+
+	batt_id = bq27xxx_read(di, BQ27XXX_REG_CTRL, false);
+	if (batt_id < 0) {
+		dev_err(di->dev, "error reading battery id\n");
+		return batt_id;
+	}
+
+	if (batt_id == SCUD_BATT_ID) {
+		di->batt_id_string = "P89990_SCUD_4V43_7700mAh";
+		di->battery_exist = true;
+	} else if (batt_id == NVT_BATT_ID) {
+		di->batt_id_string = "P89990_NVT_4V43_7700mAh";
+		di->battery_exist = true;
+	} else {
+		di->batt_id_string = "NOT_DEFAULT_BATTERY";
+		di->battery_exist = false;
+	}
+
+	dev_err(di->dev, "batt_id = 0x%x, batt_id_string: %s battery_exist = %d \n", batt_id, di->batt_id_string, di->battery_exist);
+	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE, "MM8013C10_GAUGE");
+	hardwareinfo_set_prop(HARDWARE_BATTERY_ID, di->batt_id_string);
+
+	return 0;
+}
+
 static int bq27xxx_simple_value(int value,
 				union power_supply_propval *val)
 {
@@ -1796,6 +1837,12 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		ret = bq27xxx_simple_value(di->cache.capacity, val);
+		//+ ExtB oak-4542, tankaikun@wt, add 20220215, fix device have no diag port
+		#ifdef WT_COMPILE_FACTORY_VERSION
+		if(!di->battery_exist)
+			val->intval = BATT_CAPACITY_DEFAULT_VALUE;
+		#endif
+		//- ExtB oak-2314, tankaikun@wt, add 20220215, fix device have no diag port
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		ret = bq27xxx_battery_capacity_level(di, val);
@@ -1804,6 +1851,12 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		ret = bq27xxx_simple_value(di->cache.temperature, val);
 		if (ret == 0)
 			val->intval -= 2731; /* convert decidegree k to c */
+		//+ ExtB oak-4542, tankaikun@wt, add 20220215, fix device have no diag port
+		#ifdef WT_COMPILE_FACTORY_VERSION
+		if(!di->battery_exist)
+			val->intval = BATT_DEFAULT_TEMP;
+		#endif
+		//- ExtB oak-4542, tankaikun@wt, add 20220215, fix device have no diag port
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW:
 		ret = bq27xxx_simple_value(di->cache.time_to_empty, val);
@@ -1840,13 +1893,13 @@ static int bq27xxx_battery_get_property(struct power_supply *psy,
 		ret = bq27xxx_simple_value(di->cache.energy, val);
 		break;
 	case POWER_SUPPLY_PROP_POWER_AVG:
-		ret = bq27xxx_battery_pwr_avg(di, val);
+		ret = bq27xxx_simple_value(di->cache.power_avg, val);
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		ret = bq27xxx_simple_value(di->cache.health, val);
 		break;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
-		val->strval = BQ27XXX_MANUFACTURER;
+		val->strval = di->batt_id_string;
 		break;
 	default:
 		return -EINVAL;
@@ -1905,6 +1958,8 @@ int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
 	mutex_lock(&bq27xxx_list_lock);
 	list_add(&di->list, &bq27xxx_battery_devices);
 	mutex_unlock(&bq27xxx_list_lock);
+
+	bq27xxx_check_battery_id(di);
 
 	return 0;
 }

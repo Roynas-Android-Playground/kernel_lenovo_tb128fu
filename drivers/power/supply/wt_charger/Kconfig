@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+menu "Wingtech Technologies, Inc. Charger and Fuel Gauge support"
+
+config CHARGE_BQ2589X
+	bool "BQ2589X driver"
+	depends on I2C && OF
+	select REGMAP_I2C
+	help
+	   Say Y here to enable support for charge with BQ2589X chips
+	   connected over an I2C bus.
+
+config CHARGE_SGM4151X
+	bool "SGM4151X driver"
+	depends on I2C && OF
+	select REGMAP_I2C
+	help
+	   Say Y here to enable support for charge with SGM4151X chips
+	   connected over an I2C bus.
+
+config WT_CHARGER
+	bool "WT_CHARGER power supply framework based driver"
+	help
+	  Say Y to include the support of WT_CHARGER Charge driver based on power
+	  supply framework.
+	  WT_CHARGER is a combo charger chip which can work in different modes:
+
+config CHARGE_WT6670F
+	tristate "WT6670F I2C support"
+	depends on I2C
+	default y
+	help
+	  Say Y here to enable support for hvdcp3.0 with WT6670F chips
+	  connected over an I2C bus.
+
+config DISABLE_TEMP_PROTECT
+	bool "control of TEMP protect"
+	default n
+	help
+	  Say Y here to enable a function which disabled TEMP protect...
+	  Warnning: only scm could open it.
+
+endmenu
