@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_H_
@@ -41,11 +40,14 @@ struct cam_isp_timestamp {
 void cam_isp_hw_get_timestamp(struct cam_isp_timestamp *time_stamp);
 
 enum cam_isp_hw_type {
-	CAM_ISP_HW_TYPE_CSID        = 0,
-	CAM_ISP_HW_TYPE_ISPIF       = 1,
-	CAM_ISP_HW_TYPE_VFE         = 2,
-	CAM_ISP_HW_TYPE_IFE_CSID    = 3,
-	CAM_ISP_HW_TYPE_MAX         = 4,
+	CAM_ISP_HW_TYPE_CSID,
+	CAM_ISP_HW_TYPE_ISPIF,
+	CAM_ISP_HW_TYPE_VFE,
+	CAM_ISP_HW_TYPE_IFE_CSID,
+	CAM_ISP_HW_TYPE_TFE,
+	CAM_ISP_HW_TYPE_TFE_CSID,
+	CAM_ISP_HW_TYPE_TPG,
+	CAM_ISP_HW_TYPE_MAX,
 };
 
 enum cam_isp_hw_split_id {
@@ -75,8 +77,11 @@ enum cam_isp_resource_type {
 	CAM_ISP_RESOURCE_CID,
 	CAM_ISP_RESOURCE_PIX_PATH,
 	CAM_ISP_RESOURCE_VFE_IN,
-	CAM_ISP_RESOURCE_VFE_BUS_RD,
 	CAM_ISP_RESOURCE_VFE_OUT,
+	CAM_ISP_RESOURCE_VFE_BUS_RD,
+	CAM_ISP_RESOURCE_TPG,
+	CAM_ISP_RESOURCE_TFE_IN,
+	CAM_ISP_RESOURCE_TFE_OUT,
 	CAM_ISP_RESOURCE_MAX,
 };
 
@@ -94,11 +99,10 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_BW_UPDATE_V2,
 	CAM_ISP_HW_CMD_BW_CONTROL,
 	CAM_ISP_HW_CMD_STOP_BUS_ERR_IRQ,
+	CAM_ISP_HW_CMD_GET_REG_DUMP,
 	CAM_ISP_HW_CMD_UBWC_UPDATE,
-	CAM_ISP_HW_CMD_DUMP_BUS_INFO,
 	CAM_ISP_HW_CMD_SOF_IRQ_DEBUG,
 	CAM_ISP_HW_CMD_SET_CAMIF_DEBUG,
-	CAM_ISP_HW_CMD_CAMIF_DATA,
 	CAM_ISP_HW_CMD_CSID_CLOCK_UPDATE,
 	CAM_ISP_HW_CMD_FE_UPDATE_IN_RD,
 	CAM_ISP_HW_CMD_FE_UPDATE_BUS_RD,
@@ -107,28 +111,11 @@ enum cam_isp_hw_cmd_type {
 	CAM_ISP_HW_CMD_WM_CONFIG_UPDATE,
 	CAM_ISP_HW_CMD_CSID_QCFA_SUPPORTED,
 	CAM_ISP_HW_CMD_QUERY_REGSPACE_DATA,
-	CAM_ISP_HW_CMD_QUERY,
-	CAM_ISP_HW_CMD_QUERY_DSP_MODE,
-	CAM_ISP_HW_CMD_DUMP_HW,
-	CAM_ISP_HW_CMD_FE_TRIGGER_CMD,
-	CAM_ISP_HW_CMD_CSID_CHANGE_HALT_MODE,
+	CAM_ISP_HW_CMD_TPG_PHY_CLOCK_UPDATE,
 	CAM_ISP_HW_CMD_GET_IRQ_REGISTER_DUMP,
-	CAM_ISP_HW_CMD_CSID_CLOCK_DUMP,
-	CAM_ISP_HW_CMD_SET_NUM_OF_ACQUIRED_RESOURCE,
-	CAM_ISP_HW_CMD_GET_NUM_OF_ACQUIRED_RESOURCE,
-	CAM_ISP_HW_CMD_IS_CONSUMED_ADDR_SUPPORT,
+	CAM_ISP_HW_CMD_DUMP_HW,
+	CAM_ISP_HW_CMD_TPG_SET_PATTERN,
 	CAM_ISP_HW_CMD_MAX,
-};
-
-/*
- * struct cam_isp_hw_cmd_query
- *
- * @Brief:              Structure representing query command to HW
- *
- * @query_cmd:          Command identifier
- */
-struct cam_isp_hw_cmd_query {
-	int query_cmd;
 };
 
 /*
@@ -191,7 +178,7 @@ struct cam_isp_resource_node {
  * @res_id:         Unique resource ID
  * @hw_idx:         IFE hw index
  * @err_type:       Error type if any
- * @reg_val:        Any critical register value captured during irq handling
+ * @th_reg_val:     Any critical register value captured during th
  *
  */
 struct cam_isp_hw_event_info {
@@ -199,7 +186,7 @@ struct cam_isp_hw_event_info {
 	uint32_t                       res_id;
 	uint32_t                       hw_idx;
 	uint32_t                       err_type;
-	uint32_t                       reg_val;
+	uint32_t                       th_reg_val;
 };
 
 /*
@@ -221,22 +208,16 @@ struct cam_isp_hw_cmd_buf_update {
 /*
  * struct cam_isp_hw_get_wm_update:
  *
- * @Brief:             Get cmd buffer for WM updates.
+ * @Brief:         Get cmd buffer for WM updates.
  *
  * @ image_buf:    image buffer address array
- * @ image_buf_offset: image buffer address offset array
  * @ num_buf:      Number of buffers in the image_buf array
- * @ frame_header: frame header iova
- * @ local_id:     local id for the wm
  * @ io_cfg:       IO buffer config information sent from UMD
  *
  */
 struct cam_isp_hw_get_wm_update {
 	dma_addr_t                     *image_buf;
-	uint32_t                        image_buf_offset[CAM_PACKET_MAX_PLANES];
 	uint32_t                        num_buf;
-	uint64_t                        frame_header;
-	uint32_t                        local_id;
 	struct cam_buf_io_cfg          *io_cfg;
 };
 
@@ -258,13 +239,6 @@ struct cam_isp_hw_get_cmd_update {
 		void                                 *data;
 		struct cam_isp_hw_get_wm_update      *wm_update;
 		struct cam_isp_hw_get_wm_update      *rm_update;
-		struct cam_isp_port_hfr_config       *hfr_update;
-		struct cam_isp_clock_config          *clock_update;
-		struct cam_isp_bw_config             *bw_update;
-		struct cam_ubwc_plane_cfg_v1         *ubwc_update;
-		struct cam_fe_config                 *fe_update;
-		struct cam_vfe_generic_ubwc_config   *ubwc_config;
-		struct cam_isp_vfe_wm_config         *wm_config;
 	};
 };
 
@@ -294,6 +268,7 @@ struct cam_isp_hw_dual_isp_update_args {
  * @ buf_len:        buf len
  * @ offset:         offset of buffer
  * @ ctxt_to_hw_map: ctx to hw map
+ * @ is_dump_all:    flag to indicate if all information or just bw/clk rate
  */
 struct cam_isp_hw_dump_args {
 	uint64_t                req_id;
@@ -301,6 +276,7 @@ struct cam_isp_hw_dump_args {
 	size_t                  buf_len;
 	size_t                  offset;
 	void                   *ctxt_to_hw_map;
+	bool                    is_dump_all;
 };
 
 /**

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _CAM_ISP_HW_PARSER_H_
@@ -9,7 +9,7 @@
 #include <linux/types.h>
 #include <media/cam_isp.h>
 #include "cam_isp_hw_mgr_intf.h"
-#include "cam_ife_hw_mgr.h"
+#include "cam_isp_hw_mgr.h"
 #include "cam_hw_intf.h"
 #include "cam_packet_util.h"
 
@@ -25,26 +25,13 @@ enum cam_isp_cdm_bl_type {
  * struct cam_isp_generic_blob_info
  *
  * @prepare:            Payload for prepare command
- * @ctx_base_info:      Base hardware information for the context
+ * @base_info:          Base hardware information for the context
  * @kmd_buf_info:       Kmd buffer to store the custom cmd data
  */
 struct cam_isp_generic_blob_info {
 	struct cam_hw_prepare_update_args     *prepare;
-	struct ctx_base_info                  *base_info;
+	struct cam_isp_ctx_base_info          *base_info;
 	struct cam_kmd_buf_info               *kmd_buf_info;
-};
-
-/*
- * struct cam_isp_frame_header_info
- *
- * @frame_header_enable:    Enable frame header
- * @frame_header_iova_addr: frame header iova
- * @frame_header_res_id:    res id for which frame header is enabled
- */
-struct cam_isp_frame_header_info {
-	bool                     frame_header_enable;
-	uint64_t                 frame_header_iova_addr;
-	uint32_t                 frame_header_res_id;
 };
 
 /*
@@ -90,7 +77,7 @@ int cam_isp_add_change_base(
  *                         otherwise returns bytes used
  */
 int cam_isp_add_cmd_buf_update(
-	struct cam_ife_hw_mgr_res            *hw_mgr_res,
+	struct cam_isp_hw_mgr_res            *hw_mgr_res,
 	uint32_t                              cmd_type,
 	uint32_t                              hw_cmd_type,
 	uint32_t                              base_idx,
@@ -118,9 +105,9 @@ int cam_isp_add_cmd_buf_update(
 int cam_isp_add_command_buffers(
 	struct cam_hw_prepare_update_args  *prepare,
 	struct cam_kmd_buf_info            *kmd_buf_info,
-	struct ctx_base_info               *base_info,
+	struct cam_isp_ctx_base_info       *base_info,
 	cam_packet_generic_blob_handler     blob_handler_cb,
-	struct cam_ife_hw_mgr_res          *res_list_isp_out,
+	struct cam_isp_hw_mgr_res          *res_list_isp_out,
 	uint32_t                            size_isp_out);
 
 /*
@@ -140,7 +127,7 @@ int cam_isp_add_command_buffers(
  * @res_list_ife_in_rd:    IFE /VFE in rd resource list
  * @size_isp_out:          Size of the res_list_isp_out array
  * @fill_fence:            If true, Fence map table will be filled
- * @frame_header_info:     Frame header related params
+ *
  * @return:                0 for success
  *                         -EINVAL for Fail
  */
@@ -150,11 +137,10 @@ int cam_isp_add_io_buffers(
 	struct cam_hw_prepare_update_args    *prepare,
 	uint32_t                              base_idx,
 	struct cam_kmd_buf_info              *kmd_buf_info,
-	struct cam_ife_hw_mgr_res            *res_list_isp_out,
+	struct cam_isp_hw_mgr_res            *res_list_isp_out,
 	struct list_head                     *res_list_ife_in_rd,
 	uint32_t                              size_isp_out,
-	bool                                  fill_fence,
-	struct cam_isp_frame_header_info     *frame_header_info);
+	bool                                  fill_fence);
 
 /*
  * cam_isp_add_reg_update()
@@ -175,24 +161,5 @@ int cam_isp_add_reg_update(
 	struct list_head                     *res_list_isp_src,
 	uint32_t                              base_idx,
 	struct cam_kmd_buf_info              *kmd_buf_info);
-
-/*
- * cam_isp_add_go_cmd()
- *
- * @brief                  Add go_cmd in the hw entries list for each rd source
- *
- * @prepare:               Contain the  packet and HW update variables
- * @res_list_isp_rd:       Resource list for BUS RD ports
- * @base_idx:              Base or dev index of the IFE/VFE HW instance
- * @kmd_buf_info:          Kmd buffer to store the change base command
- * @return:                0 for success
- *                         -EINVAL for Fail
- */
-int cam_isp_add_go_cmd(
-	struct cam_hw_prepare_update_args    *prepare,
-	struct list_head                     *res_list_isp_rd,
-	uint32_t                              base_idx,
-	struct cam_kmd_buf_info              *kmd_buf_info);
-
 
 #endif /*_CAM_ISP_HW_PARSER_H */

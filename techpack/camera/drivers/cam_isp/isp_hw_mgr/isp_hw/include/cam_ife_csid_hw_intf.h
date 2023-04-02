@@ -97,7 +97,6 @@ struct cam_isp_in_port_generic_info {
 	uint32_t                        batch_size;
 	uint32_t                        dsp_mode;
 	uint32_t                        hbi_cnt;
-	uint32_t                        fe_unpacker_fmt;
 	uint32_t                        cust_node;
 	uint32_t                        num_out_res;
 	uint32_t                        horizontal_bin;
@@ -154,33 +153,6 @@ enum cam_ife_csid_halt_cmd {
 };
 
 /**
- *  enum cam_ife_csid_halt_mode_cmd - Specify the halt command type
- */
-enum cam_ife_csid_halt_mode {
-	CAM_CSID_HALT_MODE_INTERNAL,
-	CAM_CSID_HALT_MODE_GLOBAL,
-	CAM_CSID_HALT_MODE_MASTER,
-	CAM_CSID_HALT_MODE_SLAVE,
-	CAM_CSID_HALT_MODE_MAX,
-};
-
-/**
- * struct cam_csid_hw_halt_args
- * @halt_mode : Applicable only for PATH resources
- * 0 Internal : The CSID responds to the HALT_CMD
- * 1 Global : The CSID responds to the GLOBAL_HALT_CMD
- * 2 Master : The CSID responds to the HALT_CMD
- * 3 Slave : The CSID responds to the external halt command
- * and not the HALT_CMD register
- * @node_res : reource pointer array( ie cid or CSID)
- *
- */
-struct cam_csid_hw_halt_args {
-	enum cam_ife_csid_halt_mode   halt_mode;
-	struct cam_isp_resource_node *node_res;
-};
-
-/**
  * struct cam_csid_hw_stop- stop all resources
  * @stop_cmd : Applicable only for PATH resources
  *             if stop command set to Halt immediately,driver will stop
@@ -219,9 +191,9 @@ struct cam_csid_reset_cfg_args {
 
 /**
  * struct cam_csid_get_time_stamp_args-  time stamp capture arguments
- * @node_res         : resource to get the time stamp
- * @time_stamp_val   : captured time stamp
- * @boot_timestamp   : boot time stamp
+ * @res_node :   resource to get the time stamp
+ * @time_stamp_val : captured time stamp
+ * @boot_timestamp : boot time stamp
  */
 struct cam_csid_get_time_stamp_args {
 	struct cam_isp_resource_node      *node_res;
@@ -236,8 +208,6 @@ enum cam_ife_csid_cmd_type {
 	CAM_IFE_CSID_CMD_GET_TIME_STAMP,
 	CAM_IFE_CSID_SET_CSID_DEBUG,
 	CAM_IFE_CSID_SOF_IRQ_DEBUG,
-	CAM_IFE_CSID_SET_CONFIG,
-	CAM_IFE_CSID_SET_SENSOR_DIMENSION_CFG,
 	CAM_IFE_CSID_CMD_MAX,
 };
 
@@ -270,26 +240,5 @@ struct cam_ife_csid_qcfa_update_args {
 	uint32_t                           qcfa_binning;
 };
 
-/*
- * struct cam_ife_csid_epd_update_args:
- *
- * @epd_supported:                flag to check epd supported or not
- */
-struct cam_ife_csid_epd_update_args {
-	uint32_t                           epd_supported;
-};
-
-/*
- * struct cam_ife_sensor_dim_update_args:
- *
- * @ppp_path:             expected ppp path configuration
- * @ipp_path:             expected ipp path configuration
- * @rdi_path:             expected rdi path configuration
- */
-struct cam_ife_sensor_dimension_update_args {
-	struct cam_isp_sensor_dimension  ppp_path;
-	struct cam_isp_sensor_dimension  ipp_path;
-	struct cam_isp_sensor_dimension  rdi_path[CAM_IFE_CSID_RDI_MAX];
-};
 
 #endif /* _CAM_CSID_HW_INTF_H_ */

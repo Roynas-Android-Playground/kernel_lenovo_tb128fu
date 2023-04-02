@@ -26,6 +26,13 @@
  */
 #define CAM_WORKQ_FLAG_SERIAL                    (1 << 1)
 
+/*
+ * Response time threshold in ms beyond which it is considered
+ * as workq scheduling/processing delay.
+ */
+#define CAM_WORKQ_RESPONSE_TIME_THRESHOLD   5
+
+
 /* Task priorities, lower the number higher the priority*/
 enum crm_task_priority {
 	CRM_TASK_PRIORITY_0,
@@ -54,28 +61,28 @@ enum crm_workq_context {
  * @ret        : return value in future to use for blocking calls
  */
 struct crm_workq_task {
-	int32_t                  priority;
-	void                    *payload;
-	int32_t                (*process_cb)(void *priv, void *data);
-	void                    *parent;
-	struct list_head         entry;
-	uint8_t                  cancel;
-	void                    *priv;
-	int32_t                  ret;
+	int32_t                    priority;
+	void                      *payload;
+	int32_t                  (*process_cb)(void *priv, void *data);
+	void                      *parent;
+	struct list_head           entry;
+	uint8_t                    cancel;
+	void                      *priv;
+	int32_t                    ret;
 };
 
 /** struct cam_req_mgr_core_workq
- * @work       : work token used by workqueue
- * @job        : workqueue internal job struct
+ * @work              : work token used by workqueue
+ * @job               : workqueue internal job struct
+ * @workq_scheduled_ts: workqueue scheduled timestamp
  * task -
- * @lock_bh    : lock for task structs
- * @in_irq     : set true if workque can be used in irq context
- * @is_static_payload : set true if payload is statically allocated
- * @free_cnt   : num of free/available tasks
- * @empty_head : list  head of available taska which can be used
- *               or acquired in order to enqueue a task to workq
- * @pool       : pool of tasks used for handling events in workq context
- * @num_task   : size of tasks pool
+ * @lock_bh           : lock for task structs
+ * @in_irq            : set true if workque can be used in irq context
+ * @free_cnt          : num of free/available tasks
+ * @empty_head        : list  head of available taska which can be used
+ *                      or acquired in order to enqueue a task to workq
+ * @pool              : pool of tasks used for handling events in workq context
+ * @num_task          : size of tasks pool
  * -
  */
 struct cam_req_mgr_core_workq {
@@ -83,7 +90,7 @@ struct cam_req_mgr_core_workq {
 	struct workqueue_struct   *job;
 	spinlock_t                 lock_bh;
 	uint32_t                   in_irq;
-	bool                       is_static_payload;
+	ktime_t                    workq_scheduled_ts;
 
 	/* tasks */
 	struct {
@@ -99,12 +106,6 @@ struct cam_req_mgr_core_workq {
 };
 
 /**
- * cam_req_mgr_process_workq() - main loop handling
- * @w: workqueue task pointer
- */
-void cam_req_mgr_process_workq(struct work_struct *w);
-
-/**
  * cam_req_mgr_workq_create()
  * @brief    : create a workqueue
  * @name     : Name of the workque to be allocated, it is combination
@@ -114,14 +115,12 @@ void cam_req_mgr_process_workq(struct work_struct *w);
  * @in_irq   : Set to one if workq might be used in irq context
  * @flags    : Bitwise OR of Flags for workq behavior.
  *             e.g. CAM_REQ_MGR_WORKQ_HIGH_PRIORITY | CAM_REQ_MGR_WORKQ_SERIAL
- * @is_static_payload : set to true if payload is statically allocated.
- * @func     : function pointer for cam_req_mgr_process_workq wrapper function
  * This function will allocate and create workqueue and pass
  * the workq pointer to caller.
  */
 int cam_req_mgr_workq_create(char *name, int32_t num_tasks,
 	struct cam_req_mgr_core_workq **workq, enum crm_workq_context in_irq,
-	int flags, bool is_static_payload, void (*func)(struct work_struct *w));
+	int flags);
 
 /**
  * cam_req_mgr_workq_destroy()
@@ -142,6 +141,14 @@ void cam_req_mgr_workq_destroy(struct cam_req_mgr_core_workq **workq);
  */
 int cam_req_mgr_workq_enqueue_task(struct crm_workq_task *task,
 	void *priv, int32_t prio);
+
+/**
+ * cam_req_mgr_thread_switch_delay_detect()
+ * @brief: Detects if workq delay has occurred or not
+ * @timestamp: workq scheduled timestamp
+ */
+void cam_req_mgr_thread_switch_delay_detect(
+	ktime_t timestamp);
 
 /**
  * cam_req_mgr_workq_get_task()

@@ -4,6 +4,7 @@
  */
 
 #include "cam_sync_util.h"
+#include "cam_req_mgr_workq.h"
 
 int cam_sync_util_find_and_set_empty_row(struct sync_device *sync_dev,
 	long *idx)
@@ -72,12 +73,6 @@ int cam_sync_init_group_object(struct sync_table_row *table,
 	 * If any child state is ERROR or SUCCESS, it will not be added to list.
 	 */
 	for (i = 0; i < num_objs; i++) {
-		if (idx == sync_objs[i]) {
-			CAM_ERR(CAM_SYNC,
-				"Invalid, same as parent fence : %i", idx);
-			rc = -EINVAL;
-			goto clean_children_info;
-		}
 		child_row = table + sync_objs[i];
 		spin_lock_bh(&sync_dev->row_spinlocks[sync_objs[i]]);
 
@@ -295,6 +290,9 @@ void cam_sync_util_cb_dispatch(struct work_struct *cb_dispatch_work)
 	struct sync_callback_info *cb_info = container_of(cb_dispatch_work,
 		struct sync_callback_info,
 		cb_dispatch_work);
+
+	cam_req_mgr_thread_switch_delay_detect(
+			cb_info->workq_scheduled_ts);
 
 	cb_info->callback_func(cb_info->sync_obj,
 		cb_info->status,

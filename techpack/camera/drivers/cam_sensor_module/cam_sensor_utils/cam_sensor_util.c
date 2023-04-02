@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -8,6 +8,7 @@
 #include "cam_mem_mgr.h"
 #include "cam_res_mgr_api.h"
 
+#define __ENABLE_GPIO_LDO__ //bug 695521, litao.wt, ADD, 2021/10/3, adpater gpio ldo hardware configure.
 #define CAM_SENSOR_PINCTRL_STATE_SLEEP "cam_suspend"
 #define CAM_SENSOR_PINCTRL_STATE_DEFAULT "cam_default"
 
@@ -368,23 +369,36 @@ static int32_t cam_sensor_handle_continuous_read(
 }
 
 static int cam_sensor_handle_slave_info(
-	uint32_t *cmd_buf,
-	struct i2c_settings_array *i2c_reg_settings,
-	struct list_head **list_ptr)
+	struct camera_io_master *io_master,
+	uint32_t *cmd_buf)
 {
 	int rc = 0;
 	struct cam_cmd_i2c_info *i2c_info = (struct cam_cmd_i2c_info *)cmd_buf;
-	struct i2c_settings_list  *i2c_list;
 
-	i2c_list =
-		cam_sensor_get_i2c_ptr(i2c_reg_settings, 1);
-	if (!i2c_list || !i2c_list->i2c_settings.reg_setting) {
-		CAM_ERR(CAM_SENSOR, "Failed in allocating mem for list");
-		return -ENOMEM;
+	if (io_master == NULL || cmd_buf == NULL) {
+		CAM_ERR(CAM_SENSOR, "Invalid args");
+		return -EINVAL;
 	}
 
-	i2c_list->op_code = CAM_SENSOR_I2C_SET_I2C_INFO;
-	i2c_list->slave_info = *i2c_info;
+	switch (io_master->master_type) {
+	case CCI_MASTER:
+		io_master->cci_client->sid = (i2c_info->slave_addr >> 1);
+		io_master->cci_client->i2c_freq_mode = i2c_info->i2c_freq_mode;
+		break;
+
+	case I2C_MASTER:
+		io_master->client->addr = i2c_info->slave_addr;
+		break;
+
+	case SPI_MASTER:
+		break;
+
+	default:
+		CAM_ERR(CAM_SENSOR, "Invalid master type: %d",
+			io_master->master_type);
+		rc = -EINVAL;
+		break;
+	}
 
 	return rc;
 }
@@ -604,7 +618,7 @@ int cam_sensor_i2c_command_parser(
 					goto end;
 				}
 				rc = cam_sensor_handle_slave_info(
-					cmd_buf, i2c_reg_settings, &list);
+					io_master, cmd_buf);
 				if (rc) {
 					CAM_ERR(CAM_SENSOR,
 					"Handle slave info failed with rc: %d",
@@ -796,12 +810,6 @@ int32_t cam_sensor_i2c_read_data(
 
 	list_for_each_entry(i2c_list,
 		&(i2c_settings->list_head), list) {
-		if (i2c_list->op_code == CAM_SENSOR_I2C_SET_I2C_INFO) {
-			CAM_DBG(CAM_SENSOR,
-				"CAM_SENSOR_I2C_SET_I2C_INFO continue");
-			continue;
-		}
-
 		read_buff = i2c_list->i2c_settings.read_buff;
 		buff_length = i2c_list->i2c_settings.read_buff_len;
 		if ((read_buff == NULL) || (buff_length == 0)) {
@@ -1820,7 +1828,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 	int32_t vreg_idx = -1;
 	struct cam_sensor_power_setting *power_setting = NULL;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
-
+	#ifdef __ENABLE_GPIO_LDO__
+	bool gpio_vdd_flag = false;
+	#endif
 	CAM_DBG(CAM_SENSOR, "Enter");
 	if (!ctrl) {
 		CAM_ERR(CAM_SENSOR, "Invalid ctrl handle");
@@ -1982,6 +1992,21 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_VAF_PWDM:
 		case SENSOR_CUSTOM_REG1:
 		case SENSOR_CUSTOM_REG2:
+			#ifdef __ENABLE_GPIO_LDO__
+			gpio_vdd_flag = (gpio_num_info && (gpio_num_info->valid[power_setting->seq_type] == 1)) ? true : false;
+			CAM_ERR(CAM_SENSOR, "seq_val = %d,gpio_vdd_flag = %d",power_setting->seq_val,gpio_vdd_flag);
+			if ((power_setting->seq_val == INVALID_VREG) && (!gpio_vdd_flag)) {
+				break;
+		        }
+
+			if ((power_setting->seq_val >= CAM_VREG_MAX) && (!gpio_vdd_flag)) {
+				CAM_ERR(CAM_SENSOR, "vreg index %d >= max %d",
+					power_setting->seq_val,
+					CAM_VREG_MAX);
+				goto power_up_failed;
+			}
+			#else
+
 			if (power_setting->seq_val == INVALID_VREG)
 				break;
 
@@ -1991,6 +2016,7 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					CAM_VREG_MAX);
 				goto power_up_failed;
 			}
+                        #endif
 			if (power_setting->seq_val < num_vreg) {
 				CAM_DBG(CAM_SENSOR, "Enable Regulator");
 				vreg_idx = power_setting->seq_val;
@@ -2198,7 +2224,9 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 	struct cam_sensor_power_setting *pd = NULL;
 	struct cam_sensor_power_setting *ps = NULL;
 	struct msm_camera_gpio_num_info *gpio_num_info = NULL;
-
+	#ifdef __ENABLE_GPIO_LDO__
+	bool gpio_vdd_flag = false;
+	#endif
 	CAM_DBG(CAM_SENSOR, "Enter");
 	if (!ctrl || !soc_info) {
 		CAM_ERR(CAM_SENSOR, "failed ctrl %pK",  ctrl);
@@ -2266,9 +2294,15 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_VAF_PWDM:
 		case SENSOR_CUSTOM_REG1:
 		case SENSOR_CUSTOM_REG2:
+			#ifdef __ENABLE_GPIO_LDO__
+			gpio_vdd_flag = (gpio_num_info && (gpio_num_info->valid[pd->seq_type] == 1)) ? true : false;
+			CAM_DBG(CAM_SENSOR, "seq_val = %d,gpio_vdd_flag = %d",pd->seq_val,gpio_vdd_flag);
+			if ((pd->seq_val == INVALID_VREG) && (!gpio_vdd_flag))
+				break;
+			#else
 			if (pd->seq_val == INVALID_VREG)
 				break;
-
+			#endif
 			ps = msm_camera_get_power_settings(
 				ctrl, pd->seq_type,
 				pd->seq_val);

@@ -753,8 +753,6 @@ int cam_fd_hw_init(void *hw_priv, void *init_hw_args, uint32_t arg_size)
 			CAM_ERR(CAM_FD, "Reset Failed, rc=%d", rc);
 			goto disable_soc;
 		}
-
-		init_args->is_hw_reset = true;
 	}
 
 	cam_fd_hw_util_enable_power_on_settings(fd_hw);
@@ -981,12 +979,14 @@ int cam_fd_hw_start(void *hw_priv, void *hw_start_args, uint32_t arg_size)
 		cdm_cmd->flag = false;
 		cdm_cmd->userdata = NULL;
 		cdm_cmd->cookie = 0;
+		cdm_cmd->gen_irq_arb = false;
 
 		for (i = 0 ; i <= start_args->num_hw_update_entries; i++) {
 			cmd = (start_args->hw_update_entries + i);
 			cdm_cmd->cmd[i].bl_addr.mem_handle = cmd->handle;
 			cdm_cmd->cmd[i].offset = cmd->offset;
 			cdm_cmd->cmd[i].len = cmd->len;
+			cdm_cmd->cmd[i].arbitrate = false;
 		}
 
 		rc = cam_cdm_submit_bls(ctx_hw_private->cdm_handle, cdm_cmd);
@@ -1110,6 +1110,7 @@ int cam_fd_hw_reserve(void *hw_priv, void *hw_reserve_args, uint32_t arg_size)
 	cdm_acquire.cam_cdm_callback = cam_fd_hw_util_cdm_callback;
 	cdm_acquire.id = CAM_CDM_VIRTUAL;
 	cdm_acquire.base_array_cnt = fd_hw->soc_info.num_reg_map;
+	cdm_acquire.priority = CAM_CDM_BL_FIFO_0;
 	for (i = 0; i < fd_hw->soc_info.num_reg_map; i++)
 		cdm_acquire.base_array[i] = &fd_hw->soc_info.reg_map[i];
 

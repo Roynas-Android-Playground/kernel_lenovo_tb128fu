@@ -396,7 +396,11 @@ done:
 
 	pr_debug("%s: leave, plug type: %d\n", __func__,  plug_type);
 
+#if 0
 	return (plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP) ? true : false;
+#else
+	return false;
+#endif
 }
 
 static int wcd_mbhc_adc_get_spl_hs_thres(struct wcd_mbhc *mbhc)
@@ -696,6 +700,8 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 
 	mbhc = container_of(work, struct wcd_mbhc, correct_plug_swch);
 	component = mbhc->component;
+
+	msleep(200);
 
 	micbias_mv = wcd_mbhc_get_micbias(mbhc);
 	hs_threshold = wcd_mbhc_adc_get_hs_thres(mbhc);

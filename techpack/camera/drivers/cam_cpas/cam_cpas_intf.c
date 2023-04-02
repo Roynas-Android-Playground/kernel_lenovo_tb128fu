@@ -17,7 +17,6 @@
 #include "cam_subdev.h"
 #include "cam_cpas_hw_intf.h"
 #include "cam_cpas_soc.h"
-#include "cam_cpas_api.h"
 
 #define CAM_CPAS_DEV_NAME    "cam-cpas"
 #define CAM_CPAS_INTF_INITIALIZED() (g_cpas_intf && g_cpas_intf->probe_done)
@@ -84,6 +83,18 @@ const char *cam_cpas_axi_util_path_type_to_string(
 	case CAM_AXI_PATH_DATA_IPE_WR_REF:
 		return "IPE_WR_REF";
 
+	/* OPE Paths */
+	case CAM_AXI_PATH_DATA_OPE_RD_IN:
+		return "OPE_RD_IN";
+	case CAM_AXI_PATH_DATA_OPE_RD_REF:
+		return "OPE_RD_REF";
+	case CAM_AXI_PATH_DATA_OPE_WR_VID:
+		return "OPE_WR_VID";
+	case CAM_AXI_PATH_DATA_OPE_WR_DISP:
+		return "OPE_WR_DISP";
+	case CAM_AXI_PATH_DATA_OPE_WR_REF:
+		return "OPE_WR_REF";
+
 	/* Common Paths */
 	case CAM_AXI_PATH_DATA_ALL:
 		return "DATA_ALL";
@@ -107,28 +118,37 @@ const char *cam_cpas_axi_util_trans_type_to_string(
 }
 EXPORT_SYMBOL(cam_cpas_axi_util_trans_type_to_string);
 
-int cam_cpas_is_feature_supported(uint32_t flag)
+bool cam_cpas_is_feature_supported(uint32_t flag,
+	uint32_t hw_id)
 {
 	struct cam_hw_info *cpas_hw = NULL;
 	struct cam_cpas_private_soc *soc_private = NULL;
-	uint32_t feature_mask;
+	uint32_t i;
+	bool  supported = true;
 
 	if (!CAM_CPAS_INTF_INITIALIZED()) {
 		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
-		return -ENODEV;
+		return false;
 	}
 
 	cpas_hw = (struct cam_hw_info *) g_cpas_intf->hw_intf->hw_priv;
 	soc_private =
 		(struct cam_cpas_private_soc *)cpas_hw->soc_info.soc_private;
-	feature_mask = soc_private->feature_mask;
 
 	if (flag >= CAM_CPAS_FUSE_FEATURE_MAX) {
 		CAM_ERR(CAM_CPAS, "Unknown feature flag %x", flag);
-		return -EINVAL;
+		return false;
 	}
 
-	return feature_mask & flag ? 1 : 0;
+	for (i = 0; i < soc_private->num_feature_entries; i++) {
+		if ((soc_private->feature_info[i].feature == flag) &&
+			(soc_private->feature_info[i].hw_id == hw_id)) {
+			supported = soc_private->feature_info[i].enable;
+			break;
+		}
+	}
+
+	return supported;
 }
 EXPORT_SYMBOL(cam_cpas_is_feature_supported);
 
@@ -156,25 +176,6 @@ int cam_cpas_get_cpas_hw_version(uint32_t *hw_version)
 	}
 
 	return 0;
-}
-
-int cam_cpas_get_camnoc_fifo_fill_level_info(
-	uint32_t cpas_version,
-	uint32_t client_handle)
-{
-	int rc = 0;
-
-	if (!CAM_CPAS_INTF_INITIALIZED()) {
-		CAM_ERR(CAM_CPAS, "cpas intf not initialized");
-		return -ENODEV;
-	}
-
-	rc = cam_cpas_hw_get_camnoc_fill_level_info(cpas_version,
-		client_handle);
-	if (rc)
-		CAM_ERR(CAM_CPAS, "Failed to dump fifo reg rc %d", rc);
-
-	return rc;
 }
 
 int cam_cpas_get_hw_info(uint32_t *camera_family,

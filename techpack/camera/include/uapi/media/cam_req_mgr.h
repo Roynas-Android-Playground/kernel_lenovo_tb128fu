@@ -30,6 +30,8 @@
 #define CAM_EEPROM_DEVICE_TYPE    (CAM_DEVICE_TYPE_BASE + 12)
 #define CAM_OIS_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 13)
 #define CAM_CUSTOM_DEVICE_TYPE    (CAM_DEVICE_TYPE_BASE + 14)
+#define CAM_OPE_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 15)
+#define CAM_TFE_DEVICE_TYPE       (CAM_DEVICE_TYPE_BASE + 16)
 
 /* cam_req_mgr hdl info */
 #define CAM_REQ_MGR_HDL_IDX_POS           8
@@ -231,9 +233,6 @@ struct cam_req_mgr_sync_mode {
  * @session_hdl:         Input param - Identifier for CSL session
  * @num_links:           Input Param - Num of links
  * @reserved:            reserved field
- * @init_timeout:        To account for INIT exposure settings
- *                       If there is no change in exp settings
- *                       field needs to assigned to 0
  * @link_hdls:           Input Param - Links to be activated/deactivated
  *
  * @opcode: CAM_REQ_MGR_LINK_CONTROL
@@ -243,7 +242,6 @@ struct cam_req_mgr_link_control {
 	int32_t session_hdl;
 	int32_t num_links;
 	int32_t reserved;
-	int32_t init_timeout[MAX_LINKS_PER_SESSION];
 	int32_t link_hdls[MAX_LINKS_PER_SESSION];
 };
 
@@ -282,6 +280,8 @@ struct cam_req_mgr_link_control {
 #define CAM_MEM_FLAG_HW_SHARED_ACCESS           (1<<11)
 #define CAM_MEM_FLAG_CDSP_OUTPUT                (1<<12)
 #define CAM_MEM_FLAG_DISABLE_DELAYED_UNMAP      (1<<13)
+#define CAM_MEM_FLAG_KMD_DEBUG_FLAG             (1<<14)
+
 
 #define CAM_MEM_MMU_MAX_HANDLE                  16
 

@@ -67,6 +67,7 @@ struct cam_mem_buf_queue {
  * @bufq: array of buffers
  * @dentry: Debugfs entry
  * @alloc_profile_enable: Whether to enable alloc profiling
+ * @dbg_buf_idx: debug buffer index to get usecases info
  */
 struct cam_mem_table {
 	struct mutex m_lock;
@@ -75,6 +76,7 @@ struct cam_mem_table {
 	struct cam_mem_buf_queue bufq[CAM_MEM_BUFQ_MAX];
 	struct dentry *dentry;
 	bool alloc_profile_enable;
+	size_t dbg_buf_idx;
 };
 
 /**
