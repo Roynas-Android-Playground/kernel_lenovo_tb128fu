@@ -13,7 +13,10 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 #include <linux/workqueue.h>
-
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
 /* Vibrator-LDO register definitions */
 #define QPNP_VIB_LDO_REG_STATUS1	0x08
 #define QPNP_VIB_LDO_VREG_READY		BIT(7)
@@ -39,14 +42,20 @@
 
 struct vib_ldo_chip {
 	struct led_classdev	cdev;
-	struct regmap		*regmap;
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+//	struct regmap		*regmap;
+//	struct pinctrl *pinctrl;
+//	struct pinctrl_state *active;
+//	struct pinctrl_state *suspend;
+	int vibrator_en;
 	struct mutex		lock;
 	struct hrtimer		stop_timer;
 	struct hrtimer		overdrive_timer;
 	struct work_struct	vib_work;
 	struct work_struct	overdrive_work;
 
-	u16			base;
+//	u16			base;
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
 	int			vmax_uV;
 	int			overdrive_volt_uV;
 	int			ldo_uV;
@@ -58,6 +67,8 @@ struct vib_ldo_chip {
 
 static inline int qpnp_vib_ldo_poll_status(struct vib_ldo_chip *chip)
 {
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+#if 0
 	unsigned int val;
 	int ret;
 
@@ -75,10 +86,16 @@ static inline int qpnp_vib_ldo_poll_status(struct vib_ldo_chip *chip)
 	}
 
 	return ret;
+#else
+	return 0;
+#endif
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
 }
 
 static int qpnp_vib_ldo_set_voltage(struct vib_ldo_chip *chip, int new_uV)
 {
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+#if 0
 	u32 vlevel;
 	u8 reg[2];
 	int ret;
@@ -106,12 +123,19 @@ static int qpnp_vib_ldo_set_voltage(struct vib_ldo_chip *chip, int new_uV)
 
 	chip->ldo_uV = new_uV;
 	return ret;
+#else
+	return 0;
+#endif
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
 }
 
 static inline int qpnp_vib_ldo_enable(struct vib_ldo_chip *chip, bool enable)
 {
-	int ret;
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+//	int ret;
 
+//	pr_err("lsw Vibrator LDO status enable:%d\n",enable);
+#if 0
 	if (chip->vib_enabled == enable)
 		return 0;
 
@@ -136,6 +160,21 @@ static inline int qpnp_vib_ldo_enable(struct vib_ldo_chip *chip, bool enable)
 	chip->vib_enabled = enable;
 
 	return ret;
+#else
+	if (chip->vib_enabled == enable)
+		return 0;
+
+	if (enable) {
+		gpio_direction_output(chip->vibrator_en, true);
+		//pr_err("lsw Vibrator vibrator_en:%d\n",enable);
+	}else{
+		gpio_direction_output(chip->vibrator_en, false);
+		//pr_err("lsw Vibrator vibrator_en:%d\n",enable);
+	}
+	chip->vib_enabled = enable;
+	return 0;
+#endif
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
 }
 
 static int qpnp_vibrator_play_on(struct vib_ldo_chip *chip)
@@ -378,6 +417,16 @@ static int qpnp_vib_parse_dt(struct device *dev, struct vib_ldo_chip *chip)
 {
 	int ret;
 
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+	//pr_err("lsw Vibrator qpnp_vib_parse_dt start\n");
+	chip->vibrator_en = of_get_named_gpio(dev->of_node, "vibrator-en", 0);
+        if (ret < 0) {
+                pr_err("lsw %s no vibrator-en info\n", __func__);
+                return ret;
+	}
+	//pr_err("lsw %s vibrator-en info:%d\n", __func__,chip->vibrator_en);
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+
 	ret = of_property_read_u32(dev->of_node, "qcom,vib-ldo-volt-uv",
 				&chip->vmax_uV);
 	if (ret < 0) {
@@ -442,34 +491,37 @@ static SIMPLE_DEV_PM_OPS(qpnp_vibrator_ldo_pm_ops, qpnp_vibrator_ldo_suspend,
 
 static int qpnp_vibrator_ldo_probe(struct platform_device *pdev)
 {
-	struct device_node *of_node = pdev->dev.of_node;
+//+bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
+//	struct device_node *of_node = pdev->dev.of_node;
 	struct vib_ldo_chip *chip;
 	int i, ret;
-	u32 base;
+//	u32 base;
 
+#if 0
 	ret = of_property_read_u32(of_node, "reg", &base);
 	if (ret < 0) {
 		pr_err("reg property reading failed, ret=%d\n", ret);
 		return ret;
 	}
-
+#endif
 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;
-
+#if 0
 	chip->regmap = dev_get_regmap(pdev->dev.parent, NULL);
 	if (!chip->regmap) {
 		pr_err("couldn't get parent's regmap\n");
 		return -EINVAL;
 	}
-
+#endif
 	ret = qpnp_vib_parse_dt(&pdev->dev, chip);
 	if (ret < 0) {
 		pr_err("couldn't parse device tree, ret=%d\n", ret);
 		return ret;
 	}
 
-	chip->base = (uint16_t)base;
+//	chip->base = (uint16_t)base;
+//-bug 692121, lishuwen.wt,ADD,20211106, add vibrator bring up
 	chip->vib_play_ms = QPNP_VIB_PLAY_MS;
 	mutex_init(&chip->lock);
 	INIT_WORK(&chip->vib_work, qpnp_vib_work);
