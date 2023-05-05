@@ -257,8 +257,10 @@ static irqreturn_t geni_i2c_irq(int irq, void *dev)
 		    (m_stat & M_CMD_CANCEL_EN) ||
 		    (m_stat & M_CMD_ABORT_EN)) {
 
-		if (m_stat & M_GP_IRQ_1_EN)
-			geni_i2c_err(gi2c, I2C_NACK);
+//dirty lenevo fixes
+		//if (m_stat & M_GP_IRQ_1_EN)
+		//	geni_i2c_err(gi2c, I2C_NACK);
+//dirty lenevo fixes
 		if (m_stat & M_GP_IRQ_3_EN)
 			geni_i2c_err(gi2c, I2C_BUS_PROTO);
 		if (m_stat & M_GP_IRQ_4_EN)

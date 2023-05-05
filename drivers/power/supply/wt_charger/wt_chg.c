@@ -391,6 +391,7 @@ static void wtchg_set_main_chg_usb_switch(struct wt_chg *chg, int enable)
 	int ret;
 	union power_supply_propval val = {0,};
 
+	
 	val.intval = enable;
 	chg->main_psy = power_supply_get_by_name("main_chg");
 	if (chg->main_psy) {

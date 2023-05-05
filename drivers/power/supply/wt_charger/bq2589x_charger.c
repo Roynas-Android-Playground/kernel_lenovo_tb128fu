@@ -1610,6 +1610,7 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 
 	bq->usb_switch_flag = false; // ExtB oak-4542, tankaikun@wt, add 20220206, fix usb do not have diag port
 	bq->firmware_flag = false;
+
 	ret = bq2589x_detect_device(bq);
 	if (!ret && bq->part_no == BQ25890) {
 		bq->status |= BQ2589X_STATUS_EXIST;
