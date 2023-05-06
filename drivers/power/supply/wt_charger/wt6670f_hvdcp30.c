@@ -1045,17 +1045,26 @@ static int wt6670f_charge_probe(struct i2c_client *client,
 	wt_chip->vbus_volt_max = WT6670F_VBUS_SET_MAX;
 	wt_chip->float_charge_recheck_cnt = 0; // ExtB oak-3798, tankaikun@wt, add 20220126, fix plug in charger slowly cause identify float type
 
-	ret = wt6670f_init_usb_psy(wt_chip);
-	if (ret < 0) {
-		pr_err("Couldn't initialize usb psy rc=%d\n", ret);
-		goto err_mem;
-	}
-
 	i2c_set_clientdata(client, wt_chip);
 
 	ret = wt6670_parse_dt(wt_chip, &client->dev);
 	if (ret < 0)
 		return ret;
+		ret = wt6670f_init_usb_psy(wt_chip);
+	if (ret < 0) {
+		pr_err("Couldn't initialize usb psy rc=%d\n", ret);
+		goto err_mem;
+	}
+
+/* reset device to get proper working of fast charge */
+	gpio_direction_output(wt_chip->reset_gpio, true);
+	mdelay(5);
+	gpio_direction_output(wt_chip->reset_gpio, false);
+	mdelay(200);
+/* reset device to get proper working of fast charge */
+
+
+
 	if(wt6670f_get_firmware_version(wt_chip) != WT6670_FW_VERSION){
 		dev_err(wt_chip->dev, "lsw_wt6670 [%s] ---- FW_VERSION is not new,start to update!\n", __func__);
 		update_firmware(wt_chip);
