@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -9,6 +8,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/pwm.h>
+#include <linux/ocp2138.h>
 #include <video/mipi_display.h>
 
 #include "dsi_panel.h"
@@ -34,6 +34,11 @@
 #define DEFAULT_PANEL_PREFILL_LINES	25
 #define MIN_PREFILL_LINES      35
 
+//+OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
+extern uint8_t Double_WakeUp_Status(void);
+static uint8_t Suspend_Double_WakeUp_Status = 0;	//OAK78,shenwenbin.wt,MOD,20211130,double wakeup sometime SPI not wake
+//-OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
+
 enum dsi_dsc_ratio_type {
 	DSC_8BPC_8BPP,
 	DSC_10BPC_8BPP,
@@ -50,7 +55,7 @@ static u32 dsi_dsc_rc_buf_thresh[] = {0x0e, 0x1c, 0x2a, 0x38, 0x46, 0x54,
  * Rate control - Min QP values for each ratio type in dsi_dsc_ratio_type
  */
 static char dsi_dsc_rc_range_min_qp_1_1[][15] = {
-	{0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 13},
+	{0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 12},
 	{0, 4, 5, 5, 7, 7, 7, 7, 7, 7, 9, 9, 9, 11, 17},
 	{0, 4, 9, 9, 11, 11, 11, 11, 11, 11, 13, 13, 13, 15, 21},
 	{0, 4, 5, 6, 7, 7, 7, 7, 7, 7, 9, 9, 9, 11, 15},
@@ -459,6 +464,17 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		goto exit;
 	}
 
+	//+Mtr6481,shenwenbin.wt,ADD,20211021,improve ocp2138 driver
+	//+OAK78,shenwenbin.wt,MOD,20211115,improve ocp2138 driver for double wakeup
+	if(!Suspend_Double_WakeUp_Status)	//OAK78,shenwenbin.wt,MOD,20211130,double wakeup sometime SPI not wake
+	{
+		rc= ocp2138_BiasPower_enable(LCM_LDO_VOL_5V7, LCM_LDO_VOL_5V7,5);
+		if(rc < 0)
+			DSI_ERR("panel external bias ocp2138 power on fail\n");
+	}
+	//-OAK78,shenwenbin.wt,MOD,20211115,improve ocp2138 driver for double wakeup
+	//-Mtr6481,shenwenbin.wt,ADD,20211021,improve ocp2138 driver
+
 	rc = dsi_panel_set_pinctrl_state(panel, true);
 	if (rc) {
 		DSI_ERR("[%s] failed to set pinctrl, rc=%d\n", panel->name, rc);
@@ -497,8 +513,8 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
-					!panel->reset_gpio_always_on)
-		gpio_set_value(panel->reset_config.reset_gpio, 0);
+						!panel->reset_gpio_always_on)
+		gpio_set_value(panel->reset_config.reset_gpio, 1);	//OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
@@ -515,6 +531,19 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed set pinctrl state, rc=%d\n", panel->name,
 		       rc);
 	}
+	//+OAK78,shenwenbin.wt,MOD,20211115,improve ocp2138 driver for double wakeup
+	if(!Double_WakeUp_Status())
+	{
+		printk("Touch double wakeup func is close,OCP2138 BiasPower need disable");
+		rc = ocp2138_BiasPower_disable(5);
+		if(rc)
+			DSI_ERR("panel external bias ocp2138 power off failed\n");
+	//+OAK78,shenwenbin.wt,MOD,20211130,double wakeup sometime SPI not wake
+		Suspend_Double_WakeUp_Status = 0;
+	}else
+		Suspend_Double_WakeUp_Status = 1;
+	//-OAK78,shenwenbin.wt,MOD,20211130,double wakeup sometime SPI not wake
+	//-OAK78,shenwenbin.wt,MOD,20211115,improve ocp2138 driver for double wakeup
 
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
@@ -734,6 +763,9 @@ error:
 	return rc;
 }
 
+//+bug692121,shenwenbin.wt,ADD,20211014,add lcd  I2C backlight ctrl
+extern unsigned int SGM37604A_set_brightness_level(unsigned int level_a);
+//-bug692121,shenwenbin.wt,ADD,20211014,add lcd  I2C backlight ctrl
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
@@ -751,6 +783,7 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		rc = dsi_panel_update_backlight(panel, bl_lvl);
 		break;
 	case DSI_BACKLIGHT_EXTERNAL:
+		SGM37604A_set_brightness_level(bl_lvl);	//bug692121,shenwenbin.wt,ADD,20211014,add lcd  I2C backlight ctrl
 		break;
 	case DSI_BACKLIGHT_PWM:
 		rc = dsi_panel_update_pwm_backlight(panel, bl_lvl);
@@ -1812,6 +1845,7 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-panel-on-command",
 	"qcom,mdss-dsi-pre-off-command",
 	"qcom,mdss-dsi-off-command",
+	"qcom,mdss-dsi-dstb-off-command",	//OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
 	"qcom,mdss-dsi-post-off-command",
 	"qcom,mdss-dsi-pre-res-switch",
 	"qcom,mdss-dsi-res-switch",
@@ -1838,6 +1872,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-on-command-state",
 	"qcom,mdss-dsi-pre-off-command-state",
 	"qcom,mdss-dsi-off-command-state",
+	"qcom,mdss-dsi-dstb-off-command-state",	//OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
 	"qcom,mdss-dsi-post-off-command-state",
 	"qcom,mdss-dsi-pre-res-switch-state",
 	"qcom,mdss-dsi-res-switch-state",
@@ -2363,6 +2398,9 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 			 panel->name, bl_type);
 		panel->bl_config.type = DSI_BACKLIGHT_UNKNOWN;
 	}
+//*Heineken* force Lenovo tf128fu panels use backligh external controls 
+	panel->bl_config.type = DSI_BACKLIGHT_EXTERNAL;
+//*Heineken* force Lenovo tf128fu panels use backligh external controls 
 
 	data = utils->get_property(utils->data, "qcom,bl-update-flag", NULL);
 	if (!data) {
@@ -3302,6 +3340,9 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 		} else if (!strcmp(string, "reg_read")) {
 			esd_config->status_mode = ESD_MODE_REG_READ;
 		} else if (!strcmp(string, "te_signal_check")) {
+			//+OAK8,shenwenbin.wt,ADD,20211209,open ESD function
+			esd_config->status_mode = ESD_MODE_PANEL_TE;
+			/*
 			if (panel->panel_mode == DSI_OP_CMD_MODE) {
 				esd_config->status_mode = ESD_MODE_PANEL_TE;
 			} else {
@@ -3309,6 +3350,8 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 				rc = -EINVAL;
 				goto error;
 			}
+			*/
+			//-OAK8,shenwenbin.wt,ADD,20211209,open ESD function
 		} else {
 			DSI_ERR("No valid panel-status-check-mode string\n");
 			rc = -EINVAL;
@@ -3949,6 +3992,7 @@ done:
 	return rc;
 }
 
+extern  u64 flag_node;	//+OAK-8,shenwenbin.wt,ADD,20211208,improve TP compatility and add LCD mipi clk node
 int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 				    struct dsi_display_mode *mode,
 				    struct dsi_host_config *config)
@@ -3986,6 +4030,11 @@ int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 		config->bit_clk_rate_hz_override = mode->timing.clk_rate_hz;
 	else
 		config->bit_clk_rate_hz_override = mode->priv_info->clk_rate_hz;
+
+	//+OAK-8,shenwenbin.wt,ADD,20211208,improve TP compatility and add LCD mipi clk node
+	if(flag_node)
+		config->bit_clk_rate_hz_override = flag_node;
+	//-OAK-8,shenwenbin.wt,ADD,20211208,improve TP compatility and add LCD mipi clk node
 
 	config->esc_clk_rate_hz = 19200000;
 	mutex_unlock(&panel->panel_lock);
@@ -4553,6 +4602,17 @@ int dsi_panel_disable(struct dsi_panel *panel)
 					panel->name, rc);
 			rc = 0;
 		}
+		//+OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
+		if(!Double_WakeUp_Status()){
+			printk("[%s] Panel Enter deep sleep mode");
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DSTB_OFF);
+			if (rc) {
+				pr_warn_ratelimited("[%s] failed to send DSI_CMD_SET_DSTB_OFF cmds, rc=%d\n",
+						panel->name, rc);
+				rc = 0;
+			}
+		}
+		//-OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
 	}
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;

@@ -229,16 +229,32 @@ static ssize_t modes_show(struct device *device,
 	return written;
 }
 
+//+OAK-8,shenwenbin.wt,ADD,20211208,improve TP compatility and add LCD mipi clk node
+u64 flag_node=0;
+static ssize_t mipi_clk_store(struct device *device,
+               struct device_attribute *attr,
+               const char *buf, size_t count)
+{
+    int flag_debug;
+    sscanf(buf,"%d",&flag_debug);
+
+    flag_node=(u64)flag_debug;
+    return count;
+}
+//-OAK-8,shenwenbin.wt,ADD,20211208,improve TP compatility and add LCD mipi clk node
+
 static DEVICE_ATTR_RW(status);
 static DEVICE_ATTR_RO(enabled);
 static DEVICE_ATTR_RO(dpms);
 static DEVICE_ATTR_RO(modes);
+static DEVICE_ATTR_WO(mipi_clk);	//OAK-8,shenwenbin.wt,ADD,20211208,improve TP compatility and add LCD mipi clk node
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_status.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_dpms.attr,
 	&dev_attr_modes.attr,
+	&dev_attr_mipi_clk.attr,
 	NULL
 };
 

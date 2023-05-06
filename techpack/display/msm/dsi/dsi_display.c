@@ -20,6 +20,7 @@
 #include "dsi_pwr.h"
 #include "sde_dbg.h"
 #include "dsi_parser.h"
+#include <linux/hardware_info.h>	//bug692121,shenwenbin.wt,ADD,20211013,add TP hardware info
 
 #define to_dsi_display(x) container_of(x, struct dsi_display, host)
 #define INT_BASE_10 10
@@ -33,6 +34,7 @@
 #define DSI_CLOCK_BITRATE_RADIX 10
 #define MAX_TE_SOURCE_ID  2
 
+extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH]; //bug692121,shenwenbin.wt,ADD,20211013,add TP hardware info
 static char dsi_display_primary[MAX_CMDLINE_PARAM_LEN];
 static char dsi_display_secondary[MAX_CMDLINE_PARAM_LEN];
 static struct dsi_display_boot_param boot_displays[MAX_DSI_ACTIVE_DISPLAY] = {
@@ -219,7 +221,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	bl_scale_sv = panel->bl_config.bl_scale_sv;
 	bl_temp = (u32)bl_temp * bl_scale_sv / MAX_SV_BL_SCALE_LEVEL;
 
-	DSI_DEBUG("bl_scale = %u, bl_scale_sv = %u, bl_lvl = %u\n",
+	pr_err("bl_scale = %u, bl_scale_sv = %u, bl_lvl = %u\n",
 		bl_scale, bl_scale_sv, (u32)bl_temp);
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
@@ -229,7 +231,11 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		goto error;
 	}
 
-	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
+
+//*Heineken* force Lenovo tf128fu panels use backligh external controls 
+ rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
+//	rc = dsi_panel_set_backlight(panel, (u32)bl_lvl);
+//*Heineken* force Lenovo tf128fu panels use backligh external controls 
 	if (rc)
 		DSI_ERR("unable to set backlight\n");
 
@@ -1397,10 +1403,14 @@ static ssize_t debugfs_alter_esd_check_mode(struct file *file,
 		goto error;
 
 	if (!strcmp(buf, "te_signal_check\n")) {
+		//+OAK8,shenwenbin.wt,ADD,20211209,open ESD function
+		/*
 		if (display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
 			DSI_INFO("TE based ESD check for Video Mode panels is not allowed\n");
 			goto error;
 		}
+		*/
+		//-OAK8,shenwenbin.wt,ADD,20211209,open ESD function
 		DSI_INFO("ESD check is switched to TE mode by user\n");
 		esd_config->status_mode = ESD_MODE_PANEL_TE;
 		dsi_display_change_te_irq_status(display, true);
@@ -5187,6 +5197,12 @@ static int dsi_display_bind(struct device *dev,
 		goto error_host_deinit;
 	}
 
+	//+bug692121,shenwenbin.wt,ADD,20211013,add TP hardware info
+	strlcpy(Lcm_name,display->name,HARDWARE_MAX_ITEM_LONGTH);
+	hardwareinfo_set_prop(HARDWARE_LCD,Lcm_name);
+	pr_info("lcd hardwareinfo is '%s'\n", Lcm_name);
+	//-bug692121,shenwenbin.wt,ADD,20211013,add TP hardware info
+
 	DSI_INFO("Successfully bind display panel '%s'\n", display->name);
 	display->drm_dev = drm;
 
@@ -7902,6 +7918,8 @@ int dsi_display_unprepare(struct dsi_display *display)
 	/* destrory dsi isr set up */
 	dsi_display_ctrl_isr_configure(display, false);
 
+	msleep(6);//OAK8,shenwenbin.wt,MOD,20211105,improve panel timing
+	
 	if (!display->poms_pending) {
 		rc = dsi_panel_post_unprepare(display->panel);
 		if (rc)

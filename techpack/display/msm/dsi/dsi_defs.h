@@ -263,6 +263,7 @@ enum dsi_dyn_clk_feature_type {
  * @DSI_CMD_SET_POST_ON:                   Panel post on
  * @DSI_CMD_SET_PRE_OFF:                   Panel pre off
  * @DSI_CMD_SET_OFF:                       Panel off
+ * @DSI_CMD_SET_DSTB_OFF:		Deepsleep	//OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
  * @DSI_CMD_SET_POST_OFF:                  Panel post off
  * @DSI_CMD_SET_PRE_RES_SWITCH:            Pre resolution switch
  * @DSI_CMD_SET_RES_SWITCH:                Resolution switch
@@ -289,6 +290,7 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SET_POST_ON,
 	DSI_CMD_SET_PRE_OFF,
 	DSI_CMD_SET_OFF,
+	DSI_CMD_SET_DSTB_OFF,	//OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
 	DSI_CMD_SET_POST_OFF,
 	DSI_CMD_SET_PRE_RES_SWITCH,
 	DSI_CMD_SET_RES_SWITCH,

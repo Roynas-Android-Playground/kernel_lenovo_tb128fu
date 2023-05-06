@@ -355,8 +355,8 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 		vreg_ctrl_0 = less_than_1500_mhz ? 0x53 : 0x52;
 		glbl_rescode_top_ctrl = less_than_1500_mhz ? 0x3d :  0x00;
 		glbl_rescode_bot_ctrl = less_than_1500_mhz ? 0x39 :  0x3c;
-		glbl_str_swi_cal_sel_ctrl = 0x00;
-		glbl_hstx_str_ctrl_0 = 0x88;
+		glbl_str_swi_cal_sel_ctrl = 0x01;	//+OAK8,shenwenbin.wt,MOD,20211110,mipi test HSTX fail
+		glbl_hstx_str_ctrl_0 = 0xff;	//+OAK8,shenwenbin.wt,MOD,20211110,mipi test HSTX fail
 	} else {
 		vreg_ctrl_0 = less_than_1500_mhz ? 0x5B : 0x59;
 		glbl_str_swi_cal_sel_ctrl = less_than_1500_mhz ? 0x03 : 0x00;
@@ -364,6 +364,13 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 		glbl_rescode_top_ctrl = 0x03;
 		glbl_rescode_bot_ctrl = 0x3c;
 	}
+
+	//+OAK775,shenwenbin.wt,MOD,20211208,NOV panel mipi test fail
+	if(strstr(saved_command_line,"qcom,mdss_dsi_nt36523w_tm_2k_video")){
+		DSI_PHY_DBG(phy, "It is nt36523w panel,set vreg_ctrl_0 to 0x52\n");
+		vreg_ctrl_0 = 0x52;
+	}
+	//-OAK775,shenwenbin.wt,MOD,20211208,NOV panel mipi test fail
 
 	/* de-assert digital and pll power down */
 	data = BIT(6) | BIT(5);
