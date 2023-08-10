@@ -490,6 +490,17 @@ config BACKLIGHT_RAVE_SP
 	help
 	  Support for backlight control on RAVE SP device.
 
+
+config LCD_BIAS_OCP2138
+	bool "Enable OCP2138 driver"
+	help
+	  define ocp2138 driver config to enable ocp2138 driver.
+
+config BACKLIGHT_SGM37604
+	bool "Enable SGM37604A driver"
+	help
+	  define SGM37604A driver config to enable SGM37604A driver.
+
 endif # BACKLIGHT_CLASS_DEVICE
 
 endif # BACKLIGHT_LCD_SUPPORT

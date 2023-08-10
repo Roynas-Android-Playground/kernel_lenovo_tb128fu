@@ -114,3 +114,10 @@ obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX) += synaptics_dsx/
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM)	+= synaptics_tcm/
 obj-$(CONFIG_TOUCHSCREEN_FTS)	+= focaltech_touch/
 obj-$(CONFIG_TOUCHSCREEN_NT36XXX)	+= nt36xxx/
+## //+bug692121,shenwenbin.wt,MOD,20211015,bringup selftest function
+obj-$(CONFIG_TOUCHSCREEN_OPENSHORT_TEST)  += tp_openshort.o
+## //-bug692121,shenwenbin.wt,MOD,20211015,bringup selftest function
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += hxchipset/
+## //+bug692121,shenwenbin.wt,MOD,20211019,bringup 2sc NOV TP
+obj-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI)	+= NT36523W/
+## //-bug692121,shenwenbin.wt,MOD,20211019,bringup 2sc NOV TP

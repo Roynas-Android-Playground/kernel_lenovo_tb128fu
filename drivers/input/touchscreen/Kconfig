@@ -95,7 +95,6 @@ config TOUCHSCREEN_AD7879_SPI
 config TOUCHSCREEN_ADC
 	tristate "Generic ADC based resistive touchscreen"
 	depends on IIO
-	select IIO_BUFFER
 	select IIO_BUFFER_CB
 	help
 	  Say Y here if you want to use the generic ADC
@@ -1351,9 +1350,35 @@ config TOUCHSCREEN_SYNAPTICS_TCM
 	  module will be called synaptics_tcm.
 
 source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
-
 source "drivers/input/touchscreen/focaltech_touch/Kconfig"
-
 source "drivers/input/touchscreen/nt36xxx/Kconfig"
+
+config TOUCHSCREEN_HIMAX_CHIPSET
+	bool "Himax touchpanel CHIPSET"
+	help
+	     Say Y here if you have a Himax CHIPSET touchscreen.
+
+	     If unsure, say N.
+
+	     To compile this driver as a module, choose M here: the
+	     module will be called tp_openshort.
+	     
+source "drivers/input/touchscreen/hxchipset/Kconfig"
+
+## //+bug692121,shenwenbin.wt,MOD,20211015,bringup selftest function
+config TOUCHSCREEN_OPENSHORT_TEST
+	bool "touchpanel openshort test"
+	help
+	Say Y here if you want factory openshot test function.
+
+	If unsure, say N.
+    
+	To compile this driver as a module, choose M here: the
+	module will be called tp_openshort.
+## //-bug692121,shenwenbin.wt,MOD,20211015,bringup selftest function
+
+## //+bug692121,shenwenbin.wt,MOD,20211019,bringup 2sc NOV TP
+source "drivers/input/touchscreen/NT36523W/Kconfig"
+## //-bug692121,shenwenbin.wt,MOD,20211019,bringup 2sc NOV TP
 
 endif
