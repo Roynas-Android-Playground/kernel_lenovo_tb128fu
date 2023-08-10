@@ -1,0 +1,3 @@
+[submodule "scripts/packaging"]
+	path = scripts/packaging
+	url = https://github.com/roynatech2544/kernel_packaging
