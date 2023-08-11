@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * drivers/mmc/host/sdhci-msm.c - Qualcomm Technologies, Inc. MSM SDHCI Platform
  * driver source file
@@ -179,6 +178,11 @@
 #define MSM_AUTOSUSPEND_DELAY_MS 100
 
 #define RCLK_TOGGLE 0x2
+
+#undef dev_dbg
+#define dev_dbg dev_info
+#undef pr_debug
+#define pr_debug pr_info
 
 struct sdhci_msm_offset {
 	u32 CORE_MCI_DATA_CNT;
@@ -3246,7 +3250,6 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	struct sdhci_host *host = (struct sdhci_host *)data;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
-	struct mmc_host *mmc = host->mmc;
 	const struct sdhci_msm_offset *msm_host_offset =
 					msm_host->offset;
 	u8 irq_status = 0;
@@ -3510,7 +3513,6 @@ static void sdhci_msm_check_power_status(struct sdhci_host *host, u32 req_type)
 	unsigned long flags;
 	bool done = false;
 	u32 io_sig_sts = SWITCHABLE_SIGNALLING_VOL;
-	struct mmc_host *mmc = host->mmc;
 
 	spin_lock_irqsave(&host->lock, flags);
 	pr_debug("%s: %s: request %d curr_pwr_state %x curr_io_level %x\n",

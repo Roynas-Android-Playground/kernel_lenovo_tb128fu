@@ -52,9 +52,21 @@
 #include "sd_ops.h"
 #include "sdio_ops.h"
 
+/* huaqin add for SD card bringup by liufurong at 20190201 start */
+#ifdef CONFIG_MMC_SDHCI_BH201
+#include "../host/sdhci-msm.h"
+#else
+#define SDHCI_TIMEOUT_CONTROL	0x2E
+#endif
+/* huaqin add for SD card bringup by liufurong at 20190201 end */
 /* The max erase timeout, used when host->max_busy_timeout isn't specified */
 #define MMC_ERASE_TIMEOUT_MS	(60 * 1000) /* 60 s */
-
+/*
+#undef    dev_dbg
+#undef    pr_debug
+#define   dev_dbg    dev_err
+#define   pr_debug   pr_err
+*/
 static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
 
 /*
@@ -333,7 +345,8 @@ static bool mmc_is_valid_state_for_clk_scaling(struct mmc_host *host)
 	 * this mode.
 	 */
 	if (!card || (mmc_card_mmc(card) &&
-			(card->part_curr == EXT_CSD_PART_CONFIG_ACC_RPMB)))
+			(card->part_curr == EXT_CSD_PART_CONFIG_ACC_RPMB ||
+			mmc_card_doing_bkops(card))))
 		return false;
 
 	if (mmc_send_status(card, &status)) {
@@ -535,6 +548,17 @@ static int mmc_devfreq_set_target(struct device *dev,
 
 	pr_debug("%s: target freq = %lu (%s)\n", mmc_hostname(host),
 		*freq, current->comm);
+/* huaqin add for SD card bringup by liufurong at 20190201 start */
+#ifdef CONFIG_MMC_SDHCI_BH201
+	{
+		struct sdhci_host *sdhost = mmc_priv(host);
+
+		if (bht_target_host(sdhost)) {
+			goto out;
+		}
+	}
+#endif
+/* huaqin add for SD card bringup by liufurong at 20190201 end */
 
 	spin_lock_irqsave(&clk_scaling->lock, flags);
 	if (clk_scaling->curr_freq == *freq ||
@@ -1902,14 +1926,11 @@ int mmc_execute_tuning(struct mmc_card *card)
 
 	err = host->ops->execute_tuning(host, opcode);
 
-	if (err) {
+	if (err)
 		pr_err("%s: tuning execution failed: %d\n",
 			mmc_hostname(host), err);
-	} else {
-		host->retune_now = 0;
-		host->need_retune = 0;
+	else
 		mmc_retune_enable(host);
-	}
 
 	return err;
 }
@@ -2383,13 +2404,7 @@ u32 mmc_select_voltage(struct mmc_host *host, u32 ocr)
 		mmc_power_cycle(host, ocr);
 	} else {
 		bit = fls(ocr) - 1;
-		/*
-		 * The bit variable represents the highest voltage bit set in
-		 * the OCR register.
-		 * To keep a range of 2 values (e.g. 3.2V/3.3V and 3.3V/3.4V),
-		 * we must shift the mask '3' with (bit - 1).
-		 */
-		ocr &= 3 << (bit - 1);
+		ocr &= 3 << bit;
 		if (bit != host->ios.vdd)
 			dev_warn(mmc_dev(host), "exceeding card's volts\n");
 	}
@@ -2472,7 +2487,7 @@ int mmc_set_uhs_voltage(struct mmc_host *host, u32 ocr)
 
 	err = mmc_wait_for_cmd(host, &cmd, 0);
 	if (err)
-		goto power_cycle;
+		return err;
 
 	if (!mmc_host_is_spi(host) && (cmd.resp[0] & R1_ERROR))
 		return -EIO;

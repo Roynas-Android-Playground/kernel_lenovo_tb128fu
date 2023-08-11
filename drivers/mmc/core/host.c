@@ -38,7 +38,12 @@
 #define MMC_DEVFRQ_DEFAULT_UP_THRESHOLD 35
 #define MMC_DEVFRQ_DEFAULT_DOWN_THRESHOLD 5
 #define MMC_DEVFRQ_DEFAULT_POLLING_MSEC 100
-
+/*
+#undef    dev_dbg
+#undef    pr_debug
+#define   dev_dbg    dev_err
+#define   pr_debug   pr_err
+*/
 static DEFINE_IDA(mmc_host_ida);
 
 static void mmc_host_classdev_release(struct device *dev)
@@ -625,16 +630,6 @@ static struct attribute_group clk_scaling_attr_grp = {
 	.attrs = clk_scaling_attrs,
 };
 
-static int mmc_validate_host_caps(struct mmc_host *host)
-{
-	if (host->caps & MMC_CAP_SDIO_IRQ && !host->ops->enable_sdio_irq) {
-		dev_warn(host->parent, "missing ->enable_sdio_irq() ops\n");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 /**
  *	mmc_add_host - initialise host hardware
  *	@host: mmc host
@@ -647,9 +642,8 @@ int mmc_add_host(struct mmc_host *host)
 {
 	int err;
 
-	err = mmc_validate_host_caps(host);
-	if (err)
-		return err;
+	WARN_ON((host->caps & MMC_CAP_SDIO_IRQ) &&
+		!host->ops->enable_sdio_irq);
 
 	err = device_add(&host->class_dev);
 	if (err)
