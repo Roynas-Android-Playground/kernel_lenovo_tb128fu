@@ -26,6 +26,8 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 
+#include <linux/hardware_info.h>	//bug550150, yanrenjie, 20200507, ADD, add hardware board id info
+
 #define PMIC_VER_8941				0x01
 #define PMIC_VERSION_REG			0x0105
 #define PMIC_VERSION_REV4_REG			0x0103
@@ -132,7 +134,6 @@
 
 #define QPNP_PON_UVLO_DLOAD_EN			BIT(7)
 #define QPNP_PON_SMPL_EN			BIT(7)
-#define QPNP_PON_KPDPWR_ON			BIT(0)
 
 /* Limits */
 #define QPNP_PON_S1_TIMER_MAX			10256
@@ -226,7 +227,6 @@ struct qpnp_pon {
 	bool			kpdpwr_dbc_enable;
 	bool			resin_pon_reset;
 	ktime_t			kpdpwr_last_release_time;
-	bool			log_kpd_event;
 };
 
 static int pon_ship_mode_en;
@@ -970,10 +970,6 @@ static int qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	 * Simulate a press event in case release event occurred without a press
 	 * event
 	 */
-	if (pon->log_kpd_event && (cfg->pon_type == PON_KPDPWR))
-		pr_info_ratelimited("PMIC input: KPDPWR status=0x%02x, KPDPWR_ON=%d\n",
-			pon_rt_sts, (pon_rt_sts & QPNP_PON_KPDPWR_ON));
-
 	if (!cfg->old_state && !key_status) {
 		input_report_key(pon->pon_input, cfg->key_code, 1);
 		input_sync(pon->pon_input);
@@ -1362,7 +1358,6 @@ static int qpnp_pon_config_kpdpwr_init(struct qpnp_pon *pon,
 				       struct device_node *node)
 {
 	int rc;
-	uint pon_rt_sts;
 
 	cfg->state_irq = platform_get_irq_byname(pdev, "kpdpwr");
 	if (cfg->state_irq < 0) {
@@ -1399,16 +1394,6 @@ static int qpnp_pon_config_kpdpwr_init(struct qpnp_pon *pon,
 	} else {
 		cfg->s2_cntl_addr = QPNP_PON_KPDPWR_S2_CNTL(pon);
 		cfg->s2_cntl2_addr = QPNP_PON_KPDPWR_S2_CNTL2(pon);
-	}
-
-	if (pon->log_kpd_event) {
-		/* Read PON_RT_STS status during driver initialization. */
-		rc = qpnp_pon_read(pon, QPNP_PON_RT_STS(pon), &pon_rt_sts);
-		if (rc < 0)
-			pr_err("failed to read QPNP_PON_RT_STS rc=%d\n", rc);
-
-		pr_info("KPDPWR status at init=0x%02x, KPDPWR_ON=%d\n",
-			pon_rt_sts, (pon_rt_sts & QPNP_PON_KPDPWR_ON));
 	}
 
 	return 0;
@@ -1931,6 +1916,38 @@ static struct kernel_param_ops dload_on_uvlo_ops = {
 
 module_param_cb(dload_on_uvlo, &dload_on_uvlo_ops, &dload_on_uvlo, 0600);
 
+int qpnp_pon_uvlo_get(int mask)
+{
+    struct qpnp_pon *pon = sys_reset_dev;
+    uint reg;
+    int rc;
+
+    if (!pon)
+        return -ENODEV;
+
+    rc = qpnp_pon_read(pon, QPNP_PON_XVDD_RB_SPARE(pon), &reg);
+    if (rc)
+        return rc;
+
+    return (mask & reg);
+}
+EXPORT_SYMBOL(qpnp_pon_uvlo_get);
+
+int qpnp_pon_uvlo_set(int val, int mask)
+{
+    struct qpnp_pon *pon = sys_reset_dev;
+
+    if (!pon)
+        return -ENODEV;
+
+    if (mask >= 0x80)
+        return -ENODEV;
+
+    return qpnp_pon_masked_write(pon, QPNP_PON_XVDD_RB_SPARE(pon), mask, val);
+}
+EXPORT_SYMBOL(qpnp_pon_uvlo_set);
+
+
 #if defined(CONFIG_DEBUG_FS)
 
 static int qpnp_pon_debugfs_uvlo_get(void *data, u64 *val)
@@ -2265,6 +2282,65 @@ static int qpnp_pon_parse_dt_power_off_config(struct qpnp_pon *pon)
 	return 0;
 }
 
+//bug550150, yanrenjie, 20200507, ADD, add hardware board id info, start
+extern char board_id[HARDWARE_MAX_ITEM_LONGTH];
+void probe_board_and_set(void)
+{
+	char* boardid_start;
+	char boardid_info[HARDWARE_MAX_ITEM_LONGTH];
+   	//bug 550150, liubaolin, 20200601,  modify, modify hardware board id info
+	int len = 0;
+
+	boardid_start = strstr(saved_command_line,"androidboot.hwboardid=");
+	memset(boardid_info, 0, HARDWARE_MAX_ITEM_LONGTH);
+
+	if(boardid_start != NULL)
+	{
+		//bug 550150, liubaolin, 20200601,  modify, modify hardware board id info,start
+        	boardid_start += strlen("androidboot.hwboardid=");
+        	len = strstr(boardid_start," ") - boardid_start;
+        	if(len <= 13)
+            		strncpy(boardid_info, boardid_start, len);//skip the header "boardid="
+        	else
+			sprintf(boardid_info, "board id len too long!");
+		//bug 550150, liubaolin, 20200601,  modify, modify hardware board id info,end
+	}
+	else
+	{
+		//bug 550150, liubaolin, 20200601,  modify, modify hardware board id info
+		sprintf(boardid_info, "board id not define!");
+	}
+	strlcpy(board_id, boardid_info, HARDWARE_MAX_ITEM_LONGTH);
+}
+
+extern char hardware_id[HARDWARE_MAX_ITEM_LONGTH];
+void probe_hardware_and_set(void)
+{
+	char* hw_id_start;
+	char hw_id_info[HARDWARE_MAX_ITEM_LONGTH];
+	int len = 0;
+
+	hw_id_start = strstr(saved_command_line,"hwversion=");
+	memset(hw_id_info, 0, HARDWARE_MAX_ITEM_LONGTH);
+	if(hw_id_start != NULL)
+	{
+        hw_id_start += strlen("hwversion=");
+        len = strstr(hw_id_start," ") - hw_id_start;
+//bug 552133, liubaolin, 20200716, modify, modify hwversion,start
+        if(len < 16)
+//bug 552133, liubaolin, 20200716, modify, modify hwversion,end
+            strncpy(hw_id_info, hw_id_start, len);//skip the header "hwversion="
+        else
+			sprintf(hw_id_info, "hardware id len too long!");
+	}
+	else
+	{
+		sprintf(hw_id_info, "hardware id not define!");
+	}
+	strlcpy(hardware_id, hw_id_info, HARDWARE_MAX_ITEM_LONGTH);
+}
+//bug550150, yanrenjie, 20200507, ADD, add hardware board id info, end
+
 static int qpnp_pon_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -2377,9 +2453,6 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 		pon->is_spon = true;
 	}
 
-	pon->log_kpd_event = of_property_read_bool(dev->of_node,
-				"qcom,log-kpd-event");
-
 	/* Register the PON configurations */
 	rc = qpnp_pon_config_init(pon, pdev);
 	if (rc)
@@ -2398,6 +2471,10 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 		modem_reset_dev = pon;
 
 	qpnp_pon_debugfs_init(pon);
+	//bug550150, yanrenjie, 20200507, ADD, add hardware board id info, start
+	probe_board_and_set();
+	probe_hardware_and_set();
+	//bug550150, yanrenjie, 20200507, ADD, add hardware board id info, end
 
 	return 0;
 }
