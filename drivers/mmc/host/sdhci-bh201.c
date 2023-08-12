@@ -205,7 +205,7 @@ int card_deselect_card(struct sdhci_host *host)
 
 	err = mmc_wait_for_cmd(mmc, &cmd, 3);
 	if (err) {
-		pr_err("BHT ERR:%s: ---- CMD7 FAIL: err = %d ----\n", __FUNCTION__, err);
+		DbgErr("BHT ERR:%s: ---- CMD7 FAIL: err = %d ----\n", __FUNCTION__, err);
 	} else {
 		ret = 0;
 	}
@@ -279,14 +279,14 @@ static bool _gg_emulator_read_only(struct sdhci_host *host,
 
 		if (cmd.error) {
 			if (cmd.err_int_mask & 0xa0000) {
-				pr_err("BHT ERR:cmd error 0x%x\n",cmd.err_int_mask);
+				DbgErr("BHT ERR:cmd error 0x%x\n",cmd.err_int_mask);
 				vendor_host->sdr50_notuning_crc_error_flag = 1;
 			}
 		}
 
 		if (data.error) {
 			if (data.err_int_mask & 0x200000) {
-				pr_err("BHT ERR:data error 0x%x\n",data.err_int_mask);
+				DbgErr("BHT ERR:data error 0x%x\n",data.err_int_mask);
 				vendor_host->sdr50_notuning_crc_error_flag = 1;
 			}
 		}
@@ -331,7 +331,7 @@ static int gg_select_card_spec(struct sdhci_host *host)
 	} else {
 		cmd.arg = 0;
 		cmd.flags = MMC_RSP_NONE | MMC_CMD_AC;
-		pr_err("BHT ERR:%s: Card structure is a null pointer!!!\n", __FUNCTION__);
+		DbgErr("BHT ERR:%s: Card structure is a null pointer!!!\n", __FUNCTION__);
 	}
 
 	err = mmc_wait_for_cmd(host->mmc, &cmd, 0);
@@ -348,12 +348,12 @@ static int gg_select_card_spec(struct sdhci_host *host)
 
 				mmc_wait_for_cmd(host->mmc, &cmd, 0);
 			}
-			pr_err("BHT ERR:%s: CMD7 CRC\n", __FUNCTION__);
+			DbgErr("BHT ERR:%s: CMD7 CRC\n", __FUNCTION__);
 			host_cmddat_line_reset(host);
 			return 0;
 		}
 		if (-ETIMEDOUT == err && (0x10000 & cmd.err_int_mask)) {
-			pr_err("BHT ERR:%s: CMD7 timeout\n", __FUNCTION__);
+			DbgErr("BHT ERR:%s: CMD7 timeout\n", __FUNCTION__);
 			host_cmddat_line_reset(host);
 			return err;
 		}
@@ -1834,7 +1834,7 @@ retry:
 		if (--tuning_seq_cnt)
 			goto retry;
 		/* tuning failed */
-		pr_err("BHT ERR:%s: %s: no tuning point found\n",
+		DbgErr("BHT ERR:%s: %s: no tuning point found\n",
 		       mmc_hostname(mmc), __func__);
 		rc = -EIO;
 	}
@@ -1901,7 +1901,7 @@ int sdhci_bht_sdr50_execute_tuning(struct sdhci_host *host, u32 opcode)
 
 		if (cmd.error) {
 			if (cmd.err_int_mask & 0xa0000) {
-				//pr_err("BHT ERR:sdr50_notuning_crc_error_flag=1\n");
+				//DbgErr("BHT ERR:sdr50_notuning_crc_error_flag=1\n");
 				vendor_host->sdr50_notuning_crc_error_flag = 1;
 			}
 			if (cmd.error == -ETIMEDOUT && phase == 0) {
@@ -1913,7 +1913,7 @@ int sdhci_bht_sdr50_execute_tuning(struct sdhci_host *host, u32 opcode)
 
 		if (data.error) {
 			if (data.err_int_mask & 0x200000) {
-				//pr_err("BHT ERR:sdr50_notuning_crc_error_flag=1\n");
+				//DbgErr("BHT ERR:sdr50_notuning_crc_error_flag=1\n");
 				vendor_host->sdr50_notuning_crc_error_flag = 1;
 			}
 		}
