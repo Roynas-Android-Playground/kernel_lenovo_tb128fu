@@ -30,8 +30,8 @@
 #define TRUE	1
 #define FALSE	0
 
-#define DbgErr pr_err
-#define PrintMsg  pr_err
+#define DbgErr pr_debug
+#define PrintMsg  pr_debug
 #define DbgInfo(m, f, r, _x_,...)
 #define os_memcpy memcpy
 #define os_memset memset
