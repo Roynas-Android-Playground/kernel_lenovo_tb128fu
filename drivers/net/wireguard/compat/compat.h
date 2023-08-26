@@ -409,6 +409,7 @@ static inline u64 __compat_jiffies64_to_nsecs(u64 j)
 }
 #define jiffies64_to_nsecs __compat_jiffies64_to_nsecs
 #endif
+#if 0
 static inline u64 ktime_get_coarse_boottime_ns(void)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
@@ -419,6 +420,7 @@ static inline u64 ktime_get_coarse_boottime_ns(void)
 	return ktime_to_ns(ktime_get_coarse_boottime());
 #endif
 }
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
@@ -847,7 +849,7 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) && !defined(ISRHEL8)
+#if 0 //LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) && !defined(ISRHEL8)
 #include <net/netlink.h>
 #ifndef NLA_POLICY_EXACT_LEN
 #define NLA_POLICY_EXACT_LEN(_len) { .type = NLA_UNSPEC, .len = _len }
@@ -1121,7 +1123,7 @@ static const struct header_ops ip_tunnel_header_ops = { .parse_protocol = ip_tun
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#if 0 // LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 #include <net/dst_cache.h>
 struct dst_cache_pcpu {
 	unsigned long refresh_ts;
