@@ -362,7 +362,7 @@ if (log_ctx) \
 	ipc_log_string(log_ctx, x); \
 if (print) { \
 	if (dev) \
-		dev_err((dev), x); \
+		dev_err_ratelimited((dev), x); \
 	else \
 		pr_err(x); \
 } \
