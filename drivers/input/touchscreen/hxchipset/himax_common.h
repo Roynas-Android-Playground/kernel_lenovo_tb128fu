@@ -59,11 +59,11 @@
 #define HX_EXCP_RECOVERY
 
 /*#define HX_NEW_EVENT_STACK_FORMAT*/
-/*#define HX_BOOT_UPGRADE*/
+#define HX_BOOT_UPGRADE
 #define HX_SMART_WAKEUP
 /*#define HX_GESTURE_TRACK*/
 #define HX_RESUME_SEND_CMD	/*Need to enable on TDDI chipset*/
-/*#define HX_HIGH_SENSE*/
+#define HX_HIGH_SENSE
 /*#define HX_PALM_REPORT*/
 #define HX_USB_DETECT_GLOBAL
 
@@ -135,7 +135,7 @@
 /*zero flash case, you need to setup the fix_touch_info of module*/
 /*Please set the size according to IC*/
 #define DSRAM_SIZE HX_32K_SZ
-#define HX_RESUME_SET_FW
+//#define HX_RESUME_SET_FW
 /* used for 102p overlay */
 #define HX_ALG_OVERLAY
 /* used for 102d overlay */
@@ -168,7 +168,7 @@ extern uint32_t g_proj_id;
 
 #if defined(HX_SMART_WAKEUP)
 /*This feature need P-sensor driver notified, and FW need to support*/
-/*#define HX_ULTRA_LOW_POWER*/
+#define HX_ULTRA_LOW_POWER
 #endif
 
 #if defined(HX_SMART_WAKEUP) && defined(HX_RESUME_SET_FW)
