@@ -130,14 +130,14 @@ unsigned int SGM37604A_set_brightness_level(unsigned int level_a)
 		BACKLIGHT_ERR("[Cust_SetBacklight] CTL_LSB fail: %d\n", ret_code);
 		return ret_code;
 	}
-	printk("SGM37604A_set_brightness_level set 0x%x : 0x%X register success\n", SGM37604A_CTL_BRIGHTNESS_LSB_REG, data0);
+	pr_debug("SGM37604A_set_brightness_level set 0x%x : 0x%X register success\n", SGM37604A_CTL_BRIGHTNESS_LSB_REG, data0);
 	
 	ret_code = SGM37604A_smbus_write_byte(pchip->client, SGM37604A_CTL_BRIGHTNESS_MSB_REG, &data1);
 	if (ret_code != 0) {
 		BACKLIGHT_ERR("[Cust_SetBacklight] CTL_MSB fail: %d\n", ret_code);
 		return ret_code;
 	}
-	printk("SGM37604A_set_brightness_level set 0x%x : 0x%X register success\n", SGM37604A_CTL_BRIGHTNESS_MSB_REG, data1);
+	pr_debug("SGM37604A_set_brightness_level set 0x%x : 0x%X register success\n", SGM37604A_CTL_BRIGHTNESS_MSB_REG, data1);
 	
 	return 0;
 }
@@ -155,7 +155,7 @@ void SGM37604A_set_backlight_reg_init(void)
 
 	ret_code = SGM37604A_smbus_write_byte(pchip->client, SGM37604A_CTL_BACKLIGHT_MODE_REG, &data0);
 	if (ret_code != 0) {
-		printk("[Cust_SetBacklight] CTL_MODE fail: %d\n", ret_code);
+		pr_debug("[Cust_SetBacklight] CTL_MODE fail: %d\n", ret_code);
 	}
 	BACKLIGHT_LOG("[SGM37604A] set backlight mode reg = 0x%x \n", data0);
 	
@@ -167,7 +167,7 @@ void SGM37604A_set_backlight_reg_init(void)
 	/*
 	ret_code = SGM37604A_smbus_write_byte(pchip->client, SGM37604A_CTL_BRIGHTNESS_LSB_REG, &data1);
 	if (ret_code != 0) {
-		printk("[Cust_SetBacklight] CTL_LED fail: %d\n", ret_code);
+		pr_debug("[Cust_SetBacklight] CTL_LED fail: %d\n", ret_code);
 	}
 	BACKLIGHT_LOG("[SGM37604A] set backlight led reg = 0x%x \n", data1);
 
@@ -176,7 +176,7 @@ void SGM37604A_set_backlight_reg_init(void)
 	//backlight LCD PWM control type
 	ret_code = SGM37604A_smbus_write_byte(pchip->client, SGM37604A_CTL_BRIGHTNESS_MSB_REG, &data2);
 	if (ret_code != 0) {
-		printk("[Cust_SetBacklight] CTL_CURRENT fail: %d\n", ret_code);
+		pr_debug("[Cust_SetBacklight] CTL_CURRENT fail: %d\n", ret_code);
 	}
 	*/
 	BACKLIGHT_LOG("[SGM37604A] set backlight current reg = 0x%x \n", data2);
@@ -268,7 +268,7 @@ static int sgm37604a_bled_update_status(struct backlight_device *bl)
 
 /*static int sgm37604a_bled_get_brightness(struct backlight_device *bl)
 {
-	printk("================leon===========bl->props.brightness[%d]======================\r\n",bl->props.brightness);
+	pr_debug("================leon===========bl->props.brightness[%d]======================\r\n",bl->props.brightness);
 
 
 	return bl->props.brightness;
@@ -318,7 +318,7 @@ static int bias_bled_switch(struct backlight_device *bl,int value)
 
 /*static int sgm37604a_bled_write_cmd(struct backlight_device *bl,unsigned char addr, unsigned char value)
 {
-	printk("================leon===========addr[%02x]===========value[%02x]==============\r\n",addr,value);
+	pr_debug("================leon===========addr[%02x]===========value[%02x]==============\r\n",addr,value);
 	tps65132_write_bytes(addr,value);
 
 	return 0;
@@ -347,7 +347,7 @@ static int SGM37604A_probe(struct i2c_client *client, const struct i2c_device_id
 	int rc = 0;
 
 	np = dev->of_node;
-	printk("SGM37604A_probe Enter\n");
+	pr_debug("SGM37604A_probe Enter\n");
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "i2c functionality check fail.\n");
 		return -EOPNOTSUPP;
@@ -363,37 +363,37 @@ static int SGM37604A_probe(struct i2c_client *client, const struct i2c_device_id
 	
 	pinctrl = devm_pinctrl_get(&client->dev);
 	if (IS_ERR_OR_NULL(pinctrl)) {
-		printk("%s: failed to get pinctrl\n", __func__);
+		pr_debug("%s: failed to get pinctrl\n", __func__);
 		return PTR_ERR(pinctrl);
 	}
 	
 	active = pinctrl_lookup_state(pinctrl, "sgm37604a_active");
 	if (IS_ERR_OR_NULL(active))
-		printk("%s: can not get sgm37604a_active pinstate\n", __func__);
+		pr_debug("%s: can not get sgm37604a_active pinstate\n", __func__);
 	
 	suspend = pinctrl_lookup_state(pinctrl, "sgm37604a_suspend");
 	if (IS_ERR_OR_NULL(suspend))
-		printk("%s: can not get sgm37604a_suspend pinstate\n", __func__);
+		pr_debug("%s: can not get sgm37604a_suspend pinstate\n", __func__);
 	
 	rc = pinctrl_select_state(pinctrl, active);//设置pin脚的状态
 	if (rc)
-			printk("SGM37604A_probe set pinctrl_select_state failed \n");
+			pr_debug("SGM37604A_probe set pinctrl_select_state failed \n");
 	
 /*
 	pchip->en_gpio = of_get_named_gpio(np,"sgm,platform-bklight-en-gpio",0);
 	
-	printk("[SGM37604A] pchip->en_gpio : %d\n", pchip->en_gpio);
+	pr_debug("[SGM37604A] pchip->en_gpio : %d\n", pchip->en_gpio);
 
 	if (gpio_is_valid(pchip->en_gpio)) {
 		rc = gpio_request(pchip->en_gpio, "bklight-en-gpio");
 		if(rc)
 		{
-			printk("[SGM37604A]request for reset_gpio failed, rc=%d\n", rc);
+			pr_debug("[SGM37604A]request for reset_gpio failed, rc=%d\n", rc);
 		}
 		else
 		{
 			rc = gpio_direction_output(pchip->en_gpio, 1);
-			printk("[SGM37604A] reset_gpio configration success\n");
+			pr_debug("[SGM37604A] reset_gpio configration success\n");
 		}
 	}
 */
@@ -416,7 +416,7 @@ static int SGM37604A_probe(struct i2c_client *client, const struct i2c_device_id
 					   &props);
 	pchip->bled->touch_status = 0;
 */
-	printk("SGM37604A_probe Success\n");
+	pr_debug("SGM37604A_probe Success\n");
 	return 0;
 }
 
