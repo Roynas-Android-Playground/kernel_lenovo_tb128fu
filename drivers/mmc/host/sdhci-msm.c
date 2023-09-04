@@ -179,11 +179,6 @@
 
 #define RCLK_TOGGLE 0x2
 
-#undef dev_dbg
-#define dev_dbg dev_info
-#undef pr_debug
-#define pr_debug pr_info
-
 struct sdhci_msm_offset {
 	u32 CORE_MCI_DATA_CNT;
 	u32 CORE_MCI_STATUS;
@@ -5849,6 +5844,13 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		 * Reset Register (Bit 2).
 		 */
 		host->quirks2 |= SDHCI_QUIRK2_RDWR_TX_ACTIVE_EOT;
+	}
+
+	/* Setup IRQ for handling power/voltage tasks with PMIC */
+	msm_host->pwr_irq = platform_get_irq_byname(pdev, "pwr_irq");
+	if (msm_host->pwr_irq < 0) {
+		ret = msm_host->pwr_irq;
+		goto clk_disable;
 	}
 
 	host->quirks2 |= SDHCI_QUIRK2_IGN_DATA_END_BIT_ERROR;
