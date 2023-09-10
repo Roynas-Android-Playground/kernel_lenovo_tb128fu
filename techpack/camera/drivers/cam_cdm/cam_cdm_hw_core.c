@@ -1203,7 +1203,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 
 	payload = container_of(work, struct cam_cdm_work_payload, work);
 	if (!payload) {
-		CAM_ERR(CAM_CDM, "NULL payload");
+		CAM_DBG(CAM_CDM, "NULL payload");
 		return;
 	}
 
@@ -1359,7 +1359,7 @@ static void cam_hw_cdm_work(struct work_struct *work)
 			clear_bit(CAM_CDM_ERROR_HW_STATUS,
 				&core->cdm_status);
 	} else {
-		CAM_ERR(CAM_CDM, "NULL payload");
+		CAM_DBG(CAM_CDM, "NULL payload");
 	}
 	kfree(payload);
 	payload = NULL;
