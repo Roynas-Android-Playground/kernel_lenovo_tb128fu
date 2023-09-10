@@ -221,7 +221,7 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	bl_scale_sv = panel->bl_config.bl_scale_sv;
 	bl_temp = (u32)bl_temp * bl_scale_sv / MAX_SV_BL_SCALE_LEVEL;
 
-	pr_err("bl_scale = %u, bl_scale_sv = %u, bl_lvl = %u\n",
+	DSI_DEBUG("bl_scale = %u, bl_scale_sv = %u, bl_lvl = %u\n",
 		bl_scale, bl_scale_sv, (u32)bl_temp);
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
 			DSI_CORE_CLK, DSI_CLK_ON);
@@ -232,10 +232,10 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	}
 
 
-//*Heineken* force Lenovo tf128fu panels use backligh external controls 
- rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
+//*Heineken* force Lenovo tfb128fu panels use backlight external controls
+	rc = dsi_panel_set_backlight(panel, (u32)bl_temp);
 //	rc = dsi_panel_set_backlight(panel, (u32)bl_lvl);
-//*Heineken* force Lenovo tf128fu panels use backligh external controls 
+//*Heineken* force Lenovo tb128fu panels use backlight external controls
 	if (rc)
 		DSI_ERR("unable to set backlight\n");
 
