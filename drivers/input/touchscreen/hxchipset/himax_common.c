@@ -3798,9 +3798,7 @@ END:
 
 int himax_chip_common_resume(struct himax_ts_data *ts)
 {
-#if defined(HX_RESUME_SET_FW)
 	int result = 0;
-#endif
 
 	if (ts->suspended == false) {
 		I("%s: Already resumed, skip...\n", __func__);
@@ -3844,7 +3842,8 @@ int himax_chip_common_resume(struct himax_ts_data *ts)
 		g_core_fp.fp_ic_reset(false, false);
 #endif
 
-#if defined(HX_RESUME_SET_FW)
+// Edit: roynatech2544: touchscreen firmware not loaded on DT2W off & screen on
+// #if defined(HX_RESUME_SET_FW)
 #if defined(HX_SMART_WAKEUP) && !defined(HX_SWU_RESUME_SET_FW)
 	if (!ts->SMWP_enable) {
 #endif
@@ -3858,7 +3857,8 @@ int himax_chip_common_resume(struct himax_ts_data *ts)
 #if defined(HX_SMART_WAKEUP) && !defined(HX_SWU_RESUME_SET_FW)
 	}
 #endif
-#endif
+// #endif
+// End edit
 
 #if defined(HX_SMART_WAKEUP)\
 	|| defined(HX_HIGH_SENSE)\
