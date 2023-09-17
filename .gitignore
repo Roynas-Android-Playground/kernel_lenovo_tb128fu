@@ -141,3 +141,4 @@ kernel/configs/android-*.cfg
 #
 Android.bp
 local.config
+!.github/

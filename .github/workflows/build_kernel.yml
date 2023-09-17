@@ -1,4 +1,4 @@
-name: Test buildable kernel
+name: Test build kernel
 
 on:
   push:
