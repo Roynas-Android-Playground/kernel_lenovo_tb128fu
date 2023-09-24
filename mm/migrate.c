@@ -2594,7 +2594,7 @@ static void migrate_vma_unmap(struct migrate_vma *migrate)
 			continue;
 
 		if (page_mapped(page)) {
-			try_to_unmap(page, flags);
+			try_to_unmap(page, flags, NULL);
 			if (page_mapped(page))
 				goto restore;
 		}
