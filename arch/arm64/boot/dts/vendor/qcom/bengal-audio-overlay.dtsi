@@ -246,6 +246,7 @@
 &qupv3_se1_i2c {
 	wsa881x_i2c_e: wsa881x-i2c-codec@e {
 		compatible = "qcom,wsa881x-i2c-codec";
+		status = "disabled";
 		reg = <0x0e>;
 		clock-names = "wsa_mclk";
 		clocks = <&wsa881x_analog_clk 0>;
@@ -255,6 +256,7 @@
 
 	wsa881x_i2c_44: wsa881x-i2c-codec@44 {
 		compatible = "qcom,wsa881x-i2c-codec";
+		status = "disabled";
 		reg = <0x044>;
 	};
 };
