@@ -4,9 +4,9 @@ git config --local user.email "41898282+github-actions[bot]@users.noreply.github
 git config --local user.name "github-actions[bot]"
 git submodule update --init
 pushd KernelSU
-LOCAL_LATEST=$(git describe --tags)
+LOCAL_LATEST=$(git describe --tags --abbrev=0)
 git pull origin main
-REMOTE_LATEST=$(git describe --tags)
+REMOTE_LATEST=$(git describe --tags --abbrev=0)
 if [ $LOCAL_LATEST = $REMOTE_LATEST ]; then
 echo "No changes: Local tag $LOCAL_LATEST is latest"
 exit 0;
