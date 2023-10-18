@@ -2129,6 +2129,10 @@ long kgsl_ioctl_gpu_aux_command(struct kgsl_device_private *dev_priv,
 	if (!(param->flags & KGSL_GPU_AUX_COMMAND_TIMELINE))
 		return -EINVAL;
 
+	if ((param->flags & KGSL_GPU_AUX_COMMAND_SYNC) &&
+		(param->numsyncs > KGSL_MAX_SYNCPOINTS))
+		return -EINVAL;
+
 	context = kgsl_context_get_owner(dev_priv, param->context_id);
 	if (!context)
 		return -EINVAL;
@@ -2680,8 +2684,8 @@ static int kgsl_setup_anon_useraddr(struct kgsl_pagetable *pagetable,
 static int match_file(const void *p, struct file *file, unsigned int fd)
 {
 	/*
-	 * We must return fd + 1 because iterate_fd stops searching on
-	 * non-zero return, but 0 is a valid fd.
+	 *  We must return fd + 1 because iterate_fd stops searching on
+	 *  non-zero return, but 0 is a valid fd.
 	 */
 	return (p == file) ? (fd + 1) : 0;
 }
