@@ -2684,8 +2684,8 @@ static int kgsl_setup_anon_useraddr(struct kgsl_pagetable *pagetable,
 static int match_file(const void *p, struct file *file, unsigned int fd)
 {
 	/*
-	 *  We must return fd + 1 because iterate_fd stops searching on
-	 *  non-zero return, but 0 is a valid fd.
+	 * We must return fd + 1 because iterate_fd stops searching on
+	 * non-zero return, but 0 is a valid fd.
 	 */
 	return (p == file) ? (fd + 1) : 0;
 }
