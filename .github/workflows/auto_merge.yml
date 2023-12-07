@@ -1,0 +1,29 @@
+name: Try merge upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'CLO Tag'
+        required: true
+        default: 'LA.UM.9.15.r1-07700-KAMORTA.QSSI14.0'
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3.5.3
+        with:
+          fetch-depth: 0
+
+      - name: Merge
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git fetch https://android.googlesource.com/kernel/common/ android-4.19-stable
+          git merge FETCH_HEAD --log=9999 --no-edit || git merge --abort
+          git fetch https://git.codelinaro.org/clo/la/kernel/msm-4.19 ${{ github.event.inputs.tag }}
+          git merge FETCH_HEAD --log=9999 --no-edit || git merge --abort
+          git push
