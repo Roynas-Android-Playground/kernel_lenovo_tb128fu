@@ -3,10 +3,10 @@ name: Test build kernel
 on:
   push:
     branches:
-      lineage-20.0
+      master
   pull_request:
     branches:
-      lineage-20.0
+      master
   workflow_dispatch:
 
 jobs:
