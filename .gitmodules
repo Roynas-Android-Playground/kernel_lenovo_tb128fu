@@ -1,7 +1,7 @@
-[submodule "scripts/packaging"]
-	path = scripts/packaging
-	url = https://github.com/Roynas-Android-Playground/kernel_packaging
 [submodule "KernelSU"]
 	path = KernelSU
 	url = https://github.com/tiann/KernelSU
 	branch = b52bf53
+[submodule "AnyKernel3"]
+	path = AnyKernel3
+	url = https://github.com/Roynas-Android-Playground/kernel_packaging_anykernel3
