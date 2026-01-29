@@ -61,6 +61,10 @@ uint8_t *wake_event_buffer;
 extern uint8_t Double_WakeUp_Status(void);	//OAK78,shenwenbin.wt,MOD,20211115,tuning double wakeup
 #endif
 
+/* [HXTP_FIX] DT2W debounce protection */
+static unsigned long last_dt2w_jiffies = 0;
+#define DT2W_DEBOUNCE_MS 500  /* Minimum time between DT2W events */
+
 
 #define SUPPORT_FINGER_DATA_CHECKSUM 0x0F
 #define TS_WAKE_LOCK_TIMEOUT		(5000)
@@ -141,14 +145,6 @@ static void himax_enforcer_func(struct work_struct *work)
 	if (atomic_read(&private_ts->suspend_mode)) {
 		goto reschedule;
 	}
-
-	/* Force Idle Mode OFF */
-	if (g_core_fp.fp_idle_mode)
-		g_core_fp.fp_idle_mode(1);
-
-	/* Force High Sensitivity */
-	if (g_core_fp.fp_set_HSEN_enable)
-		g_core_fp.fp_set_HSEN_enable(1, 0);
 
 	/* Force Game Mode ON - reduces latency, disables auto-idle */
 	if (g_core_fp.fp_set_game_mode)
@@ -1455,6 +1451,20 @@ static void himax_wake_event_report(void)
 {
 	int KEY_EVENT = g_target_report_data->SMWP_event_chk;
 
+	/*
+	 * [HXTP_FIX] DT2W debounce - prevent rapid repeated events
+	 * that could be interpreted as long press
+	 */
+	if (KEY_EVENT == KEY_POWER) {
+		unsigned long now = jiffies;
+		if (time_before(now, last_dt2w_jiffies + msecs_to_jiffies(DT2W_DEBOUNCE_MS))) {
+			I("[HXTP_FIX] DT2W debounce: ignoring rapid DT2W event\n");
+			g_target_report_data->SMWP_event_chk = 0;
+			return;
+		}
+		last_dt2w_jiffies = now;
+	}
+
 	if (g_ts_dbg != 0)
 		I("%s: Entering!\n", __func__);
 
@@ -1462,10 +1472,14 @@ static void himax_wake_event_report(void)
 		I("%s SMART WAKEUP KEY event %d press\n", __func__, KEY_EVENT);
 		input_report_key(private_ts->input_dev, KEY_EVENT, 1);
 		input_sync(private_ts->input_dev);
-		I("%s SMART WAKEUP KEY event %d release\n",
-				__func__, KEY_EVENT);
+		
+		/* [HXTP_FIX] Add delay to prevent Android interpreting as long press */
+		msleep(100);
+
+		/* Release the key */
 		input_report_key(private_ts->input_dev, KEY_EVENT, 0);
 		input_sync(private_ts->input_dev);
+		I("%s SMART WAKEUP KEY event %d sent (press+release)\n", __func__, KEY_EVENT);
 #if defined(HX_GESTURE_TRACK)
 		I("gest_start_x=%d,start_y=%d,end_x=%d,end_y=%d\n",
 			gest_start_x,
@@ -3484,15 +3498,10 @@ int himax_chip_common_init(void)
 #endif
 
 #if defined(HX_HIGH_SENSE)
-	ts->HSEN_enable = 1; /* [HXTP_FIX] Default to High Sensitivity */
+	ts->HSEN_enable = 0;
 #endif
 
-	/* [HXTP_FIX] Apply initial sensitivity settings */
-	pr_info("[HXTP_FIX] INIT: Applying Idle-OFF, High Sensitivity, and Game Mode\n");
-	if (g_core_fp.fp_idle_mode)
-		g_core_fp.fp_idle_mode(1);
-	if (g_core_fp.fp_set_HSEN_enable)
-		g_core_fp.fp_set_HSEN_enable(1, 0);
+	pr_info("[HXTP_FIX] INIT: Applying Game Mode\n");
 	if (g_core_fp.fp_set_game_mode)
 		g_core_fp.fp_set_game_mode(1);
 
