@@ -879,6 +879,7 @@ static void wt6670f_monitor_workfunc(struct work_struct *work)
 {
 	struct wt6670f_info *wt_chip = container_of(work,
 									struct wt6670f_info, monitor_work.work);
+	int ret;
 #if 0	
 	//for qc30 test
 	static int monitor_count = 1;
@@ -912,7 +913,16 @@ static void wt6670f_monitor_workfunc(struct work_struct *work)
 	}
 #endif
 
-	wt6670f_get_charger_type(wt_chip);
+	ret = wt6670f_get_charger_type(wt_chip);
+	if (ret < 0 && gpio_is_valid(wt_chip->reset_gpio)) {
+		/* Try GPIO reset pulse if chip not responding */
+		gpio_direction_output(wt_chip->reset_gpio, 1);
+		mdelay(5);
+		gpio_direction_output(wt_chip->reset_gpio, 0);
+		mdelay(20);
+		/* Retry after reset */
+		wt6670f_get_charger_type(wt_chip);
+	}
 	wt6670f_get_vbus_voltage(wt_chip);
 	//schedule_delayed_work(&wt_chip->monitor_work, msecs_to_jiffies(10000));
 }
@@ -1105,6 +1115,26 @@ static int wt6670f_charge_probe(struct i2c_client *client,
 	ret = wt6670_parse_dt(wt_chip, &client->dev);
 	if (ret < 0)
 		return ret;
+
+	/* 
+	 * FIX: Perform GPIO reset before first I2C communication.
+	 * The WT6670F chip may be in an undefined state at boot time.
+	 * Without this reset pulse, I2C communication fails with -107 (ENOTCONN).
+	 */
+	if (gpio_is_valid(wt_chip->reset_gpio)) {
+		ret = gpio_request(wt_chip->reset_gpio, "wt6670f_reset");
+		if (ret < 0) {
+			dev_err(wt_chip->dev, "Failed to request reset GPIO: %d\n", ret);
+		} else {
+			gpio_direction_output(wt_chip->reset_gpio, 1);
+			mdelay(5);
+			gpio_direction_output(wt_chip->reset_gpio, 0);
+			mdelay(20);  /* Give chip time to initialize after reset */
+			dev_info(wt_chip->dev, "WT6670F reset pulse sent\n");
+			gpio_free(wt_chip->reset_gpio);
+		}
+	}
+
 	if(wt6670f_get_firmware_version(wt_chip) != WT6670_FW_VERSION){
 		dev_err(wt_chip->dev, "lsw_wt6670 [%s] ---- FW_VERSION is not new,start to update!\n", __func__);
 		update_firmware(wt_chip);
