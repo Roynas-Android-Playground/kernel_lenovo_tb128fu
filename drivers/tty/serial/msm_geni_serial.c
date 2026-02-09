@@ -3829,11 +3829,11 @@ static int msm_geni_serial_runtime_resume(struct device *dev)
 	int ret = 0;
 
 	/*
-	 * Do an unconditional relax followed by a stay awake in case the
-	 * wake source is activated by the wakeup isr.
+	 * Do an unconditional relax in case the wake source is
+	 * activated by the wakeup isr. Don't stay awake permanently
+	 * to allow system sleep when UART is idle.
 	 */
 	__pm_relax(port->geni_wake);
-	__pm_stay_awake(port->geni_wake);
 	if (port->wakeup_irq > 0)
 		disable_irq(port->wakeup_irq);
 	/*
