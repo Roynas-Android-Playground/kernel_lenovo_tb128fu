@@ -1,4 +1,4 @@
-ccflags-y += -I$(src)/tcm
+ccflags-y += -I $(srctree)/$(src)/tcm
 
 obj-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) := synaptics_v2_mmi.o
 synaptics_v2_mmi-objs := \
