@@ -3,6 +3,9 @@
 #include "dsi-panel-nt36672e-fhd-plus-90hz-video.dtsi"
 #include "dsi-panel-nt36672e-fhd-plus-120hz-video.dtsi"
 #include "dsi-panel-sim-video.dtsi"
+#include "dsi-panel-hx83102p-boe-2k-video.dtsi"
+#include "dsi-panel-nt36523w-tm-2k-video.dtsi"
+#include "dsi-panel-nt36523w-tm-2k-apcf-video.dtsi"
 #include <dt-bindings/clock/mdss-7nm-pll-clk.h>
 
 &soc {
