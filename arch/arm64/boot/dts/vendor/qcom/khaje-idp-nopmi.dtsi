@@ -1,5 +1,13 @@
 #include "khaje-idp.dtsi"
 
+&reserved_memory {
+	pstore_mem: pstore_region@64000000 {
+		compatible = "removed-dma-pool";
+		no-map;
+		reg = <0x0 0x64000000 0x0 0x100000>;
+	};
+};
+
 &dsi_td4330_truly_v2_video {
 	/delete-property/ qcom,esd-check-enabled;
 };
