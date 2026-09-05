@@ -3,6 +3,7 @@
 &soc {
 	mdss_mdp: qcom,mdss_mdp {
 		compatible = "qcom,sde-kms";
+		#cooling-cells = <2>;
 		reg = <0x5e00000 0x8f030>,
 		      <0x5eb0000 0x2008>,
 		      <0x5e8f000 0x030>;

@@ -539,9 +539,10 @@
 		qcom,msm-cpudai-tdm-group-id = <37120>;
 		qcom,msm-cpudai-tdm-group-num-ports = <1>;
 		qcom,msm-cpudai-tdm-group-port-id = <36864>;
+		qcom,msm-cpudai-tdm-lane-mask = /bits/ 16 <1>;
 		qcom,msm-cpudai-tdm-clk-rate = <1536000>;
 		qcom,msm-cpudai-tdm-clk-internal = <1>;
-		qcom,msm-cpudai-tdm-sync-mode = <1>;
+		qcom,msm-cpudai-tdm-sync-mode = <2>;
 		qcom,msm-cpudai-tdm-sync-src = <1>;
 		qcom,msm-cpudai-tdm-data-out = <0>;
 		qcom,msm-cpudai-tdm-invert-sync = <1>;
@@ -558,9 +559,10 @@
 		qcom,msm-cpudai-tdm-group-id = <37121>;
 		qcom,msm-cpudai-tdm-group-num-ports = <1>;
 		qcom,msm-cpudai-tdm-group-port-id = <36865>;
+		qcom,msm-cpudai-tdm-lane-mask = /bits/ 16 <2>;
 		qcom,msm-cpudai-tdm-clk-rate = <1536000>;
 		qcom,msm-cpudai-tdm-clk-internal = <1>;
-		qcom,msm-cpudai-tdm-sync-mode = <1>;
+		qcom,msm-cpudai-tdm-sync-mode = <2>;
 		qcom,msm-cpudai-tdm-sync-src = <1>;
 		qcom,msm-cpudai-tdm-data-out = <0>;
 		qcom,msm-cpudai-tdm-invert-sync = <1>;

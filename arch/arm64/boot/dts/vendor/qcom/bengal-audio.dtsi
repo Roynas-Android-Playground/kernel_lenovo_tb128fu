@@ -21,21 +21,6 @@
 #include "bengal-lpi.dtsi"
 
 &q6core {
-	cdc_dmic01_gpios: cdc_dmic01_pinctrl {
-		compatible = "qcom,msm-cdc-pinctrl";
-		pinctrl-names = "aud_active", "aud_sleep";
-		pinctrl-0 = <&cdc_dmic01_clk_active &cdc_dmic01_data_active>;
-		pinctrl-1 = <&cdc_dmic01_clk_sleep &cdc_dmic01_data_sleep>;
-		qcom,lpi-gpios;
-	};
-
-	cdc_dmic23_gpios: cdc_dmic23_pinctrl {
-		compatible = "qcom,msm-cdc-pinctrl";
-		pinctrl-names = "aud_active", "aud_sleep";
-		pinctrl-0 = <&cdc_dmic23_clk_active &cdc_dmic23_data_active>;
-		pinctrl-1 = <&cdc_dmic23_clk_sleep &cdc_dmic23_data_sleep>;
-		qcom,lpi-gpios;
-	};
 
 	rx_swr_gpios: rx_swr_clk_data_pinctrl {
 		compatible = "qcom,msm-cdc-pinctrl";
@@ -96,7 +81,7 @@
 		compatible = "qcom,bengal-asoc-snd";
 		qcom,mi2s-audio-intf = <0>;
 		qcom,auxpcm-audio-intf = <0>;
-		qcom,tdm-audio-intf = <0>;
+		qcom,tdm-audio-intf = <1>;
 		qcom,wcn-btfm = <1>;
 		qcom,afe-rxtx-lb = <0>;
 
@@ -172,14 +157,10 @@
 				"msm-dai-cdc-dma-dev.45116",
 				"msm-dai-cdc-dma-dev.45118",
 				"msm-dai-q6-dev.24577";
-		fsa4480-i2c-handle = <&fsa4480>;
 	};
 };
 
 &qupv3_se1_i2c {
 	status = "ok";
-	fsa4480: fsa4480@42 {
-		compatible = "qcom,fsa4480-i2c";
-		reg = <0x42>;
-	};
+
 };

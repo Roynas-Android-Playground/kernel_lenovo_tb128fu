@@ -1,3 +1,7 @@
+#include <dt-bindings/clock/qcom,gcc-khaje.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/input/qcom,qpnp-power-on.h>
+#define TB128FU_BOARD
 #include "khaje-idp.dtsi"
 
 &reserved_memory {
@@ -20,20 +24,14 @@
 	/delete-property/ qcom,esd-check-enabled;
 };
 
-&qupv3_se2_i2c {
-	synaptics_tcm@20 {
-		status = "disabled";
-	};
 
-	novatek@62 {
-		status = "disabled";
-	};
-};
 
 &usb0 {
-	/delete-property/ extcon;
+	extcon = <&rpm>;
 	dwc3@4e00000 {
-		dr_mode = "peripheral";
+		dr_mode = "otg";
+		maximum-speed = "high-speed";
+		usb-phy = <&usb2_phy0>, <&usb_nop_phy>;
 	};
 };
 &tlmm {
@@ -285,17 +283,14 @@
 		monitored-battery = <&battery>;
 	};
 
-	/*
-	 * Live FDT carries two aw882xx_smartpa nodes at each of reg 0x34/0x35
-	 * (sound-channel 0/1 and 2/3); only the final pair is kept here.
-	 */
+	/* SE1 carries left/right channels 0/1; SE2 carries 2/3. */
 	aw882xx_smartpa@34 {
 		status = "ok";
 		compatible = "awinic,aw882xx_smartpa";
 		reg = <0x34>;
 		reset-gpio = <&tlmm 106 0x00>;
 		dc-flag = <0x00>;
-		sound-channel = <0x02>;
+		sound-channel = <0>;
 		aw-tx-topo-id = <0x1000ff00>;
 		aw-rx-topo-id = <0x1000ff01>;
 		aw-tx-port-id = <0x9001>;
@@ -312,7 +307,7 @@
 		reg = <0x35>;
 		reset-gpio = <&tlmm 106 0x00>;
 		dc-flag = <0x00>;
-		sound-channel = <0x03>;
+		sound-channel = <1>;
 		aw-tx-topo-id = <0x1000ff00>;
 		aw-rx-topo-id = <0x1000ff01>;
 		aw-tx-port-id = <0x9001>;
@@ -325,6 +320,40 @@
 };
 
 &qupv3_se2_i2c {
+	aw882xx_smartpa@34 {
+		status = "ok";
+		compatible = "awinic,aw882xx_smartpa";
+		reg = <0x34>;
+		reset-gpio = <&tlmm 106 0>;
+		dc-flag = <0x0>;
+		sound-channel = <0x2>;
+		aw-tx-topo-id = <0x1000ff00>;
+		aw-rx-topo-id = <0x1000ff01>;
+		aw-tx-port-id = <0x9001>;
+		aw-rx-port-id = <0x9000>;
+		aw-re-min = <0xfa0>;
+		aw-re-max = <0x7530>;
+		aw-cali-mode = "aw_attr";
+		spin-mode = "dsp_spin";
+	};
+
+	aw882xx_smartpa@35 {
+		status = "ok";
+		compatible = "awinic,aw882xx_smartpa";
+		reg = <0x35>;
+		reset-gpio = <&tlmm 106 0>;
+		dc-flag = <0x0>;
+		sound-channel = <0x3>;
+		aw-tx-topo-id = <0x1000ff00>;
+		aw-rx-topo-id = <0x1000ff01>;
+		aw-tx-port-id = <0x9001>;
+		aw-rx-port-id = <0x9000>;
+		aw-re-min = <0xfa0>;
+		aw-re-max = <0x7530>;
+		aw-cali-mode = "aw_attr";
+		spin-mode = "dsp_spin";
+	};
+
 	ocp2138@3e {
 		compatible = "ocp,i2c_lcd_bias";
 		reg = <0x3e>;
@@ -386,4 +415,283 @@
 
 &sde_dsi {
 	qcom,dsi-default-panel = <&dsi_hx83102p_boe_2k_video>;
+};
+
+/* TB128FU charging and USB PD controller wiring. */
+&soc {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	qupv3_se5_i2c: i2c@4a94000 {
+		compatible = "qcom,i2c-geni";
+		reg = <0x4a94000 0x4000>;
+		interrupts = <GIC_SPI 332 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <0x1>;
+		#size-cells = <0>;
+		clock-names = "se-clk", "m-ahb", "s-ahb";
+		clocks = <&gcc GCC_QUPV3_WRAP0_S5_CLK>,
+			<&gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>,
+			<&gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>;
+		dmas = <&gpi_dma0 0x0 0x5 0x3 0x40 0x0>, <&gpi_dma0 0x1 0x5 0x3 0x40 0x0>;
+		dma-names = "tx", "rx";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se5_i2c_active>;
+		pinctrl-1 = <&qupv3_se5_i2c_sleep>;
+		qcom,wrapper-core = <&qupv3_0>;
+		status = "ok";
+		qcom,clk-freq-out = <400000>;
+
+		rt1711h@4e {
+			compatible = "richtek,rt1711h";
+			reg = <0x4e>;
+			status = "okay";
+			rt-tcpc,name = "type_c_port0";
+			rt-tcpc,role_def = <0x5>;
+			rt-tcpc,rp_level = <0>;
+			rt-tcpc,vconn_supply = <0x1>;
+			rt-tcpc,notifier_supply_num = <0x2>;
+			rt1711pd,intr_gpio = <&tlmm 0x11 0x0>;
+			rt1711pd,intr_gpio_num = <0x11>;
+			rt1711h-en = <&tlmm 0x48 0x0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&rt1711h_int_n>, <&rt1711h_ldo_en>;
+
+			pd-data {
+				pd,vid = <0x29cf>;
+				pd,pid = <0x1711>;
+				pd,source-cap-ext = <0x171129cf 0x0 0x0 0x0 0x0 0x2000000>;
+				pd,mfrs = "RichtekTCPC";
+				pd,charging_policy = <0x31>;
+				pd,source-pdo-size = <0x1>;
+				pd,source-pdo-data = <0x19032>;
+				pd,sink-pdo-size = <0x3>;
+				/* Preserve Lenovo's six cells; pd_core reads the first three. */
+				pd,sink-pdo-data = <0x190c8 0x190c8 0x2d0c8 0x2d0c8 0x2d12c 0x2d12c>;
+				pd,id-vdo-size = <0x6>;
+				pd,id-vdo-data = <0xd54029cf 0x0 0x17110000 0x41800000 0x0 0x21800000>;
+				bat,nr = <0x1>;
+				pd,country_nr = <0>;
+
+				bat-info0 {
+					bat,vid = <0x29cf>;
+					bat,pid = <0x1711>;
+					bat,mfrs = "bat1";
+					bat,design_cap = <0xbb8>;
+				};
+			};
+
+			dpm_caps {
+				local_dr_power;
+				local_dr_data;
+				local_usb_comm;
+				local_no_suspend;
+				local_vconn_supply;
+				attemp_enter_dp_mode;
+				attemp_discover_cable;
+				attemp_discover_id;
+				pr_check = <0>;
+				dr_check = <0>;
+			};
+
+			displayport {
+				1st_connection = "dfp_d";
+				2nd_connection = "dfp_d";
+				signal,dp_v13;
+				typec,receptacle;
+
+				ufp_d {
+				};
+
+				dfp_d {
+					pin_assignment,mode_c;
+					pin_assignment,mode_d;
+					pin_assignment,mode_e;
+				};
+			};
+		};
+
+		wt6670f_36: wt6670f@36 {
+			compatible = "weltrend,wt6670f";
+			reg = <0x36>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <0x1b 0x0>;
+			interrupt-names = "wt_irq";
+			irq-gpio = <&tlmm 0x1b 0x0>;
+			wt6670f,reset-gpio = <&tlmm 0x1a 0x0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&wt6670f_reset_default>, <&wt6670f_int_default>;
+		};
+	};
+
+	rpm: rt-pd-manager {
+		compatible = "richtek,rt-pd-manager";
+	};
+
+	qcom_wt_chg: qcom_wt_chg {
+		status = "okay";
+		#io-channel-cells = <0x1>;
+		compatible = "qcom,wt_chg";
+		qcom,fv-max-uv = <4432000>;
+		qcom,fcc-max-ua = <4000000>;
+		qcom,batt_iterm = <300000>;
+		qcom,auto-recharge-soc = <98>;
+		wt,batt-cycle-ranges = <0x0 0x96 0x1150 0x97 0x190 0x111c 0x191 0xf423f 0x1068>;
+		io-channels = <&pm6125_vadc 0x52>, <&pm6125_vadc 0x4e>, <&pm6125_vadc 0x53>;
+		io-channel-names = "main_chg_therm", "quiet_therm", "usb_port_therm";
+	};
+
+};
+&tlmm {
+	qupv3_se5_i2c_pins: qupv3_se5_i2c_pins {
+
+		qupv3_se5_i2c_active: qupv3_se5_i2c_active {
+
+			mux {
+				pins = "gpio14", "gpio15";
+				function = "qup5";
+			};
+
+			config {
+				pins = "gpio14", "gpio15";
+				drive-strength = <0x2>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se5_i2c_sleep: qupv3_se5_i2c_sleep {
+
+			mux {
+				pins = "gpio14", "gpio15";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio14", "gpio15";
+				drive-strength = <0x2>;
+				bias-pull-up;
+			};
+		};
+	};
+
+	rt1711h_int_n: rt1711h_int_n {
+
+		mux {
+			pins = "gpio17";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio17";
+			drive-strength = <0x2>;
+			bias-pull-up;
+		};
+	};
+
+	rt1711h_ldo_en: rt1711h_ldo_en {
+
+		mux {
+			pins = "gpio72";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio72";
+			bias-disable = <0>;
+			drive-strength = <0x2>;
+			output-high;
+		};
+	};
+
+	wt6670f_reset_default: wt6670f_reset_default {
+
+		mux {
+			pins = "gpio26";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio26";
+			bias-disable = <0>;
+			drive-strength = <0x2>;
+			output-low;
+		};
+	};
+
+	wt6670f_int_default: wt6670f_int_default {
+
+		mux {
+			pins = "gpio27";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio27";
+			drive-strength = <0x2>;
+			bias-pull-up;
+			input-enable;
+		};
+	};
+
+};
+
+&usb2_phy0 {
+	/* Value/register pairs from the TB128FU USB2 board tuning. */
+	qcom,param-override-seq = <0xa6 0x6c 0xcf 0x70 0x16 0x74>;
+};
+&usb_qmp_dp_phy {
+	status = "disabled";
+};
+&{/soc/qcom,spmi@1c40000/qcom,pm6125@0/qcom,power-on@800} {
+	interrupts = <0x0 0x8 0x0 IRQ_TYPE_EDGE_BOTH>,
+		     <0x0 0x8 0x1 IRQ_TYPE_EDGE_BOTH>,
+		     <0x0 0x8 0x3 IRQ_TYPE_EDGE_RISING>;
+	interrupt-names = "kpdpwr", "resin", "kpdpwr-resin-bark";
+
+	qcom,pon_1 {
+		qcom,support-reset = <1>;
+		qcom,s1-timer = <10256>;
+		qcom,s2-timer = <2000>;
+		qcom,s2-type = <0>; /* Legacy SOFT_RESET, no binding macro. */
+	};
+
+	qcom,pon_3 {
+		qcom,pon-type = <PON_POWER_ON_TYPE_KPDPWR_RESIN>;
+		qcom,pull-up = <1>;
+		qcom,support-reset = <1>;
+		qcom,s1-timer = <10256>;
+		qcom,s2-timer = <2000>;
+		qcom,s2-type = <PON_POWER_OFF_TYPE_DVDD_SHUTDOWN>;
+		qcom,use-bark;
+	};
+};
+&tlmm {
+	wt_vibr_en_default: wt_vibr_en_default {
+		mux {
+			pins = "gpio111";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio111";
+			bias-disable = <0>;
+			drive-strength = <2>;
+			output-low;
+		};
+	};
+};
+&soc {
+	wt_vibrator: wt_vibrator {
+		compatible = "qcom,qpnp-vibrator-ldo";
+		qcom,vib-ldo-volt-uv = <3000000>;
+		qcom,disable-overdrive;
+		vibrator-en = <&tlmm 111 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wt_vibr_en_default>;
+		/*
+		 * TB128FU uses a GPIO, not a PMIC register block. The current
+		 * qpnp-vibrator-ldo driver requires reg and a parent regmap and
+		 * does not consume vibrator-en. Enable only with that backend.
+		 */
+		status = "disabled";
+	};
 };

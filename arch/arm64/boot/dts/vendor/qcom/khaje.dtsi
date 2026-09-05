@@ -2585,7 +2585,8 @@
 
 	qcom,rmtfs_sharedmem@0 {
 		compatible = "qcom,sharedmem-uio";
-		reg = <0x0 0x200000>;
+		/* Lenovo's RMTFS service maps the complete 3 MiB region. */
+		reg = <0x0 0x300000>;
 		reg-names = "rmtfs";
 		qcom,client-id = <0x00000001>;
 		qcom,guard-memory;
@@ -3438,6 +3439,7 @@
 
 	qcom,rmnet-ipa {
 		compatible = "qcom,rmnet-ipa3";
+		status = "disabled";
 		qcom,rmnet-ipa-ssr;
 		qcom,ipa-platform-type-msm;
 		qcom,ipa-advertise-sg-support;
@@ -3446,6 +3448,7 @@
 
 	ipa_hw: qcom,ipa@0x5800000 {
 		compatible = "qcom,ipa";
+		status = "disabled";
 		reg = <0x5800000 0x34000>,
 			<0x5804000 0x28000>;
 		reg-names = "ipa-base", "gsi-base";
@@ -3618,6 +3621,208 @@
 #include "bengal-audio.dtsi"
 #include "khaje-sde-pll.dtsi"
 #include "khaje-sde.dtsi"
+
+#include "bengal-coresight.dtsi"
+
+/ {
+	mem-offline {
+		compatible = "qcom,mem-offline";
+		offline-sizes = <1 0x40000000 0 0x40000000>,
+				<1 0xc0000000 0 0x80000000>,
+				<2 0xc0000000 1 0x40000000>;
+		granule = <512>;
+	};
+
+	reserved-memory {
+		/* SDE intentionally retains the matching continuous-splash range. */
+		disp_rdump_mem: disp_rdump_region@5c000000 {
+			reg = <0 0x5c000000 0 0xf00000>;
+			label = "disp_rdump_region";
+		};
+	};
+};
+
+/* Restore the reference save/restore helpers, not automatic tracing. */
+&jtag_mm0 { /delete-property/ status; };
+&jtag_mm1 { /delete-property/ status; };
+&jtag_mm2 { /delete-property/ status; };
+&jtag_mm3 { /delete-property/ status; };
+&jtag_mm4 { /delete-property/ status; };
+&jtag_mm5 { /delete-property/ status; };
+&jtag_mm6 { /delete-property/ status; };
+&jtag_mm7 { /delete-property/ status; };
+
+/*
+ * qcom,sn-fuse and qcom,sec-boot-fuse have no matching driver in this
+ * kernel. Do not instantiate unsupported MMIO devices for those old
+ * Lenovo sysfs interfaces. Existing QFPROM/nvmem debug-fuse policy stays.
+ */
+
+
+/* TB128FU Khaje routing differences from the reused Bengal topology. */
+
+&soc {
+	/delete-node/ funnel@8861000;
+	/delete-node/ cti@8867000;
+};
+
+&{/soc} {
+	cti@8862000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0xbb966>;
+		reg = <0x8862000 0x1000>;
+		reg-names = "cti-base";
+		coresight-name = "coresight-cti-turing-q6";
+		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;
+		clock-names = "apb_pclk";
+	};
+};
+
+&{/soc} {
+	funnel@8863000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0xbb908>;
+		reg = <0x8863000 0x1000>;
+		reg-names = "funnel-base";
+		coresight-name = "coresight-funnel-turing";
+		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;
+		clock-names = "apb_pclk";
+		ports {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			port@0 {
+				reg = <0x0>;
+				endpoint {
+					remote-endpoint = <&{/soc/funnel@8005000/ports/port@2/endpoint}>;
+					source = <&{/soc/turing_etm0}>;
+				};
+			};
+			port@1 {
+				reg = <0x1>;
+				endpoint {
+					remote-endpoint = <&{/soc/tpda@8004000/ports/port@3/endpoint}>;
+				};
+			};
+			port@2 {
+				reg = <0x0>;
+				endpoint {
+					slave-mode;
+					remote-endpoint = <&{/soc/tpdm@8860000/port/endpoint}>;
+				};
+			};
+			port@3 {
+				reg = <0x1>;
+				endpoint {
+					slave-mode;
+					remote-endpoint = <&{/soc/tpdm@8861000/port/endpoint}>;
+				};
+			};
+			port@4 {
+				reg = <0x2>;
+				endpoint {
+					slave-mode;
+					remote-endpoint = <&{/soc/turing_etm0/port/endpoint}>;
+				};
+			};
+		};
+	};
+};
+
+&{/soc/tpda@8004000/ports} {
+	port@10 {
+		reg = <0xf>;
+		endpoint {
+			slave-mode;
+			remote-endpoint = <&{/soc/tpdm@8850000/port/endpoint}>;
+		};
+	};
+};
+
+&{/soc} {
+	tpdm@800f000 {
+		compatible = "arm,primecell";
+		arm,primecell-periphid = <0xbb968>;
+		reg = <0x800f000 0x1000>;
+		reg-names = "tpdm-base";
+		coresight-name = "coresight-tpdm-spdm";
+		clocks = <&rpmcc RPM_SMD_QDSS_CLK>;
+		clock-names = "apb_pclk";
+		port {
+			endpoint {
+				remote-endpoint = <&{/soc/tpda@8004000/ports/port@9/endpoint}>;
+			};
+		};
+	};
+};
+
+&{/soc} {
+	tpdm@8861000 {
+		compatible = "qcom,coresight-dummy";
+		coresight-name = "coresight-tpdm-turing_llm";
+		qcom,dummy-source;
+		port {
+			endpoint {
+				remote-endpoint = <&{/soc/funnel@8863000/ports/port@3/endpoint}>;
+			};
+		};
+	};
+};
+
+&{/soc/funnel@8005000/ports/port@2/endpoint} {
+	remote-endpoint = <&{/soc/funnel@8863000/ports/port@0/endpoint}>;
+};
+
+&{/soc/tpda@8004000} {
+	qcom,dsb-elem-size = <0x0 0x20 0x1 0x20 0x5 0x20 0xb 0x20 0xc 0x20 0xf 0x20>;
+};
+
+&{/soc/tpda@8004000/ports/port@3/endpoint} {
+	remote-endpoint = <&{/soc/funnel@8863000/ports/port@1/endpoint}>;
+};
+
+&{/soc/tpda@8004000/ports/port@7} {
+	reg = <0xb>;
+};
+
+&{/soc/tpda@8004000/ports/port@7/endpoint} {
+	remote-endpoint = <&{/soc/tpdm@8a58000/port/endpoint}>;
+};
+
+&{/soc/tpda@8004000/ports/port@8} {
+	reg = <0xc>;
+};
+
+&{/soc/tpda@8004000/ports/port@8/endpoint} {
+	remote-endpoint = <&{/soc/tpdm@89d0000/port/endpoint}>;
+};
+
+&{/soc/tpda@8004000/ports/port@9} {
+	reg = <0xd>;
+};
+
+&{/soc/tpda@8004000/ports/port@9/endpoint} {
+	remote-endpoint = <&{/soc/tpdm@800f000/port/endpoint}>;
+};
+
+&{/soc/tpdm@8850000/port/endpoint} {
+	remote-endpoint = <&{/soc/tpda@8004000/ports/port@10/endpoint}>;
+};
+
+&{/soc/tpdm@8860000/port/endpoint} {
+	remote-endpoint = <&{/soc/funnel@8863000/ports/port@2/endpoint}>;
+};
+
+&{/soc/tpdm@89d0000/port/endpoint} {
+	remote-endpoint = <&{/soc/tpda@8004000/ports/port@8/endpoint}>;
+};
+
+&{/soc/tpdm@8a58000/port/endpoint} {
+	remote-endpoint = <&{/soc/tpda@8004000/ports/port@7/endpoint}>;
+};
+
+&{/soc/turing_etm0/port/endpoint} {
+	remote-endpoint = <&{/soc/funnel@8863000/ports/port@4/endpoint}>;
+};
 
 &soc {
 	/delete-node/ gpu_bw_tbl;
@@ -3936,12 +4141,18 @@
 };
 
 &pm8008_8 {
+	/* TB128FU camera rails are GPIO-controlled; PM8008 is not populated. */
+	status = "disabled";
 	/* PM8008 IRQ STAT */
 	interrupt-parent = <&tlmm>;
 	interrupts = <25 IRQ_TYPE_EDGE_RISING>;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&pm8008_active &pm8008_interrupt>;
+};
+
+&pm8008_9 {
+	status = "disabled";
 };
 
 &pm8008_regulators {
@@ -4021,21 +4232,7 @@
 		qcom,pre-scaling = <1 1>;
 	};
 
-	camera_flash_therm {
-		reg = <ADC_GPIO1_PU2>;
-		label = "camera_flash_therm";
-		qcom,ratiometric;
-		qcom,hw-settle-time = <200>;
-		qcom,pre-scaling = <1 1>;
-	};
 
-	emmc_ufs_therm {
-		reg = <ADC_GPIO2_PU2>;
-		label = "emmc_ufs_therm";
-		qcom,ratiometric;
-		qcom,hw-settle-time = <200>;
-		qcom,pre-scaling = <1 1>;
-	};
 };
 
 &pm6125_gpios {
