@@ -3188,7 +3188,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	return 0;
 }
 
-unsigned long to_ratio(u64 period, u64 runtime)
+u64 to_ratio(u64 period, u64 runtime)
 {
 	if (runtime == RUNTIME_INF)
 		return BW_UNIT;
@@ -3634,10 +3634,8 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		next->active_mm = oldmm;
 		mmgrab(oldmm);
 		enter_lazy_tlb(oldmm, next);
-	} else {
+	} else
 		switch_mm_irqs_off(oldmm, mm, next);
-		lru_gen_use_mm(mm);
-	}
 
 	if (!prev->mm) {
 		prev->active_mm = NULL;

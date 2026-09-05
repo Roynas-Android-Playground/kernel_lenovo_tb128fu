@@ -202,7 +202,7 @@ void page_cache_readahead_unbounded(struct address_space *mapping,
 
 		BUG_ON(index + i != rac._index + rac._nr_pages);
 
-		if (page && !radix_tree_exceptional_entry(page)) {
+		if (page && !xa_is_value(page)) {
 			/*
 			 * Page already present?  Kick off the current batch of
 			 * contiguous pages before continuing with the next

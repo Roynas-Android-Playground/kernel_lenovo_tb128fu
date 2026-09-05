@@ -6,7 +6,6 @@
  */
 
 #include <linux/memcontrol.h>
-#include <linux/mm_inline.h>
 #include <linux/writeback.h>
 #include <linux/shmem_fs.h>
 #include <linux/pagemap.h>
@@ -161,20 +160,20 @@
  * and activations is maintained (node->inactive_age).
  *
  * On eviction, a snapshot of this counter (along with some bits to
- * identify the node) is stored in the now empty page cache radix tree
+ * identify the node) is stored in the now empty page cache
  * slot of the evicted page.  This is called a shadow entry.
  *
  * On cache misses for which there are shadow entries, an eligible
  * refault distance will immediately activate the refaulting page.
  */
 
-#define EVICTION_SHIFT	(RADIX_TREE_EXCEPTIONAL_ENTRY + \
+#define EVICTION_SHIFT	((BITS_PER_LONG - BITS_PER_XA_VALUE) +  \
 			 1 + NODES_SHIFT + MEM_CGROUP_ID_SHIFT)
 #define EVICTION_MASK	(~0UL >> EVICTION_SHIFT)
 
 /*
  * Eviction timestamps need to be able to cover the full range of
- * actionable refaults. However, bits are tight in the radix tree
+ * actionable refaults. However, bits are tight in the xarray
  * entry, and after storing the identifier for the lruvec there might
  * not be enough left to represent every single actionable refault. In
  * that case, we have to sacrifice granularity for distance, and group
@@ -185,22 +184,22 @@ static unsigned int bucket_order __read_mostly;
 static void *pack_shadow(int memcgid, pg_data_t *pgdat, unsigned long eviction,
 			 bool workingset)
 {
+	eviction >>= bucket_order;
+	eviction &= EVICTION_MASK;
 	eviction = (eviction << MEM_CGROUP_ID_SHIFT) | memcgid;
 	eviction = (eviction << NODES_SHIFT) | pgdat->node_id;
 	eviction = (eviction << 1) | workingset;
-	eviction = (eviction << RADIX_TREE_EXCEPTIONAL_SHIFT);
 
-	return (void *)(eviction | RADIX_TREE_EXCEPTIONAL_ENTRY);
+	return xa_mk_value(eviction);
 }
 
 static void unpack_shadow(void *shadow, int *memcgidp, pg_data_t **pgdat,
 			  unsigned long *evictionp, bool *workingsetp)
 {
-	unsigned long entry = (unsigned long)shadow;
+	unsigned long entry = xa_to_value(shadow);
 	int memcgid, nid;
 	bool workingset;
 
-	entry >>= RADIX_TREE_EXCEPTIONAL_SHIFT;
 	workingset = entry & 1;
 	entry >>= 1;
 	nid = entry & ((1UL << NODES_SHIFT) - 1);
@@ -210,107 +209,9 @@ static void unpack_shadow(void *shadow, int *memcgidp, pg_data_t **pgdat,
 
 	*memcgidp = memcgid;
 	*pgdat = NODE_DATA(nid);
-	*evictionp = entry;
+	*evictionp = entry << bucket_order;
 	*workingsetp = workingset;
 }
-
-#ifdef CONFIG_LRU_GEN
-
-static int page_lru_refs(struct page *page)
-{
-	unsigned long flags = READ_ONCE(page->flags);
-
-	BUILD_BUG_ON(LRU_GEN_WIDTH + LRU_REFS_WIDTH > BITS_PER_LONG - EVICTION_SHIFT);
-
-	/* see the comment on MAX_NR_TIERS */
-	return flags & BIT(PG_workingset) ? (flags & LRU_REFS_MASK) >> LRU_REFS_PGOFF : 0;
-}
-
-void *lru_gen_eviction(struct page *page)
-{
-	int hist, tier;
-	unsigned long token;
-	unsigned long min_seq;
-	struct lruvec *lruvec;
-	struct lru_gen_struct *lrugen;
-	int type = page_is_file_cache(page);
-	int refs = page_lru_refs(page);
-	int delta = hpage_nr_pages(page);
-	bool workingset = PageWorkingset(page);
-	struct mem_cgroup *memcg = page_memcg(page);
-	struct pglist_data *pgdat = page_pgdat(page);
-
-	if (!mem_cgroup_disabled() && !memcg)
-		return NULL;
-
-	lruvec = mem_cgroup_lruvec(pgdat, memcg);
-	lrugen = &lruvec->lrugen;
-	min_seq = READ_ONCE(lrugen->min_seq[type]);
-	token = (min_seq << LRU_REFS_WIDTH) | refs;
-
-	hist = lru_hist_from_seq(min_seq);
-	tier = lru_tier_from_refs(refs + workingset);
-	atomic_long_add(delta, &lrugen->evicted[hist][type][tier]);
-
-	return pack_shadow(mem_cgroup_id(memcg), pgdat, token, workingset);
-}
-
-void lru_gen_refault(struct page *page, void *shadow)
-{
-	int hist, tier, refs;
-	int memcg_id;
-	bool workingset;
-	unsigned long token;
-	unsigned long min_seq;
-	struct lruvec *lruvec;
-	struct lru_gen_struct *lrugen;
-	struct mem_cgroup *memcg;
-	struct pglist_data *pgdat;
-	int type = page_is_file_cache(page);
-	int delta = hpage_nr_pages(page);
-
-	unpack_shadow(shadow, &memcg_id, &pgdat, &token, &workingset);
-
-	refs = token & (BIT(LRU_REFS_WIDTH) - 1);
-	if (refs && !workingset)
-		return;
-
-	if (page_pgdat(page) != pgdat)
-		return;
-
-	rcu_read_lock();
-	memcg = mem_cgroup_from_id(memcg_id);
-	if (!mem_cgroup_disabled() && !memcg)
-		goto unlock;
-
-	token >>= LRU_REFS_WIDTH;
-	lruvec = mem_cgroup_lruvec(pgdat, memcg);
-	lrugen = &lruvec->lrugen;
-	min_seq = READ_ONCE(lrugen->min_seq[type]);
-	if (token != (min_seq & (EVICTION_MASK >> LRU_REFS_WIDTH)))
-		goto unlock;
-
-	hist = lru_hist_from_seq(min_seq);
-	tier = lru_tier_from_refs(refs + workingset);
-	atomic_long_add(delta, &lrugen->refaulted[hist][type][tier]);
-	mod_lruvec_state(lruvec, WORKINGSET_REFAULT, delta);
-
-	/*
-	 * Count the following two cases as stalls:
-	 * 1. For pages accessed through page tables, hotter pages pushed out
-	 *    hot pages which refaulted immediately.
-	 * 2. For pages accessed through file descriptors, numbers of accesses
-	 *    might have been beyond the limit.
-	 */
-	if (lru_gen_in_fault() || refs + workingset == BIT(LRU_REFS_WIDTH)) {
-		SetPageWorkingset(page);
-		mod_lruvec_state(lruvec, WORKINGSET_RESTORE, delta);
-	}
-unlock:
-	rcu_read_unlock();
-}
-
-#endif /* CONFIG_LRU_GEN */
 
 /**
  * workingset_eviction - note the eviction of a page from memory
@@ -328,17 +229,13 @@ void *workingset_eviction(struct address_space *mapping, struct page *page)
 	unsigned long eviction;
 	struct lruvec *lruvec;
 
-	/* Page is fully exclusive and pins page->mem_cgroup */
+	/* Page is fully exclusive and pins page's memory cgroup pointer */
 	VM_BUG_ON_PAGE(PageLRU(page), page);
 	VM_BUG_ON_PAGE(page_count(page), page);
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 
-	if (lru_gen_enabled())
-		return lru_gen_eviction(page);
-
 	lruvec = mem_cgroup_lruvec(pgdat, memcg);
 	eviction = atomic_long_inc_return(&lruvec->inactive_age);
-	eviction >>= bucket_order;
 	return pack_shadow(memcgid, pgdat, eviction, PageWorkingset(page));
 }
 
@@ -362,13 +259,7 @@ void workingset_refault(struct page *page, void *shadow)
 	bool workingset;
 	int memcgid;
 
-	if (lru_gen_enabled()) {
-		lru_gen_refault(page, shadow);
-		return;
-	}
-
 	unpack_shadow(shadow, &memcgid, &pgdat, &eviction, &workingset);
-	eviction <<= bucket_order;
 
 	rcu_read_lock();
 	/*
@@ -475,7 +366,7 @@ out:
 
 static struct list_lru shadow_nodes;
 
-void workingset_update_node(struct radix_tree_node *node)
+void workingset_update_node(struct xa_node *node)
 {
 	/*
 	 * Track non-empty nodes that contain only shadow entries;
@@ -485,7 +376,7 @@ void workingset_update_node(struct radix_tree_node *node)
 	 * already where they should be. The list_empty() test is safe
 	 * as node->private_list is protected by the i_pages lock.
 	 */
-	if (node->count && node->count == node->exceptional) {
+	if (node->count && node->count == node->nr_values) {
 		if (list_empty(&node->private_list))
 			list_lru_add(&shadow_nodes, &node->private_list);
 	} else {
@@ -504,7 +395,7 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 	nodes = list_lru_shrink_count(&shadow_nodes, sc);
 
 	/*
-	 * Approximate a reasonable limit for the radix tree nodes
+	 * Approximate a reasonable limit for the nodes
 	 * containing shadow entries. We don't need to keep more
 	 * shadow entries than possible pages on the active list,
 	 * since refault distances bigger than that are dismissed.
@@ -519,11 +410,11 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 	 * worst-case density of 1/8th. Below that, not all eligible
 	 * refaults can be detected anymore.
 	 *
-	 * On 64-bit with 7 radix_tree_nodes per page and 64 slots
+	 * On 64-bit with 7 xa_nodes per page and 64 slots
 	 * each, this will reclaim shadow entries when they consume
 	 * ~1.8% of available memory:
 	 *
-	 * PAGE_SIZE / radix_tree_nodes / node_entries * 8 / PAGE_SIZE
+	 * PAGE_SIZE / xa_nodes / node_entries * 8 / PAGE_SIZE
 	 */
 #ifdef CONFIG_MEMCG
 	if (sc->memcg) {
@@ -538,8 +429,7 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 #endif
 		pages = node_present_pages(sc->nid);
 
-	max_nodes = pages >> (RADIX_TREE_MAP_SHIFT - 3);
-
+	max_nodes = pages >> (XA_CHUNK_SHIFT - 3);
 	if (!nodes)
 		return SHRINK_EMPTY;
 
@@ -551,11 +441,11 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 static enum lru_status shadow_lru_isolate(struct list_head *item,
 					  struct list_lru_one *lru,
 					  spinlock_t *lru_lock,
-					  void *arg)
+					  void *arg) __must_hold(lru_lock)
 {
+	struct xa_node *node = container_of(item, struct xa_node, private_list);
+	XA_STATE(xas, node->array, 0);
 	struct address_space *mapping;
-	struct radix_tree_node *node;
-	unsigned int i;
 	int ret;
 
 	/*
@@ -563,15 +453,14 @@ static enum lru_status shadow_lru_isolate(struct list_head *item,
 	 * the shadow node LRU under the i_pages lock and the
 	 * lru_lock.  Because the page cache tree is emptied before
 	 * the inode can be destroyed, holding the lru_lock pins any
-	 * address_space that has radix tree nodes on the LRU.
+	 * address_space that has nodes on the LRU.
 	 *
 	 * We can then safely transition to the i_pages lock to
 	 * pin only the address_space of the particular node we want
 	 * to reclaim, take the node off-LRU, and drop the lru_lock.
 	 */
 
-	node = container_of(item, struct radix_tree_node, private_list);
-	mapping = container_of(node->root, struct address_space, i_pages);
+	mapping = container_of(node->array, struct address_space, i_pages);
 
 	/* Coming from the list, invert the lock order */
 	if (!xa_trylock(&mapping->i_pages)) {
@@ -588,29 +477,21 @@ static enum lru_status shadow_lru_isolate(struct list_head *item,
 	 * no pages, so we expect to be able to remove them all and
 	 * delete and free the empty node afterwards.
 	 */
-	if (WARN_ON_ONCE(!node->exceptional))
+	if (WARN_ON_ONCE(!node->nr_values))
 		goto out_invalid;
-	if (WARN_ON_ONCE(node->count != node->exceptional))
+	if (WARN_ON_ONCE(node->count != node->nr_values))
 		goto out_invalid;
-	for (i = 0; i < RADIX_TREE_MAP_SIZE; i++) {
-		if (node->slots[i]) {
-			if (WARN_ON_ONCE(!radix_tree_exceptional_entry(node->slots[i])))
-				goto out_invalid;
-			if (WARN_ON_ONCE(!node->exceptional))
-				goto out_invalid;
-			if (WARN_ON_ONCE(!mapping->nrexceptional))
-				goto out_invalid;
-			node->slots[i] = NULL;
-			node->exceptional--;
-			node->count--;
-			mapping->nrexceptional--;
-		}
-	}
-	if (WARN_ON_ONCE(node->exceptional))
-		goto out_invalid;
+	mapping->nrexceptional -= node->nr_values;
+	xas.xa_node = xa_parent_locked(&mapping->i_pages, node);
+	xas.xa_offset = node->offset;
+	xas.xa_shift = node->shift + XA_CHUNK_SHIFT;
+	xas_set_update(&xas, workingset_update_node);
+	/*
+	 * We could store a shadow entry here which was the minimum of the
+	 * shadow entries we were tracking ...
+	 */
+	xas_store(&xas, NULL);
 	inc_lruvec_page_state(virt_to_page(node), WORKINGSET_NODERECLAIM);
-	__radix_tree_delete_node(&mapping->i_pages, node,
-				 workingset_lookup_update(mapping));
 
 out_invalid:
 	xa_unlock_irq(&mapping->i_pages);

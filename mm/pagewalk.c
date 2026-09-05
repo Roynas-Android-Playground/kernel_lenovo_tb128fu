@@ -131,11 +131,6 @@ static int walk_p4d_range(pgd_t *pgd, unsigned long addr, unsigned long end,
 				break;
 			continue;
 		}
-		if (walk->p4d_entry) {
-			err = walk->p4d_entry(p4d, addr, next, walk);
-			if (err)
-				break;
-		}
 		if (walk->pmd_entry || walk->pte_entry)
 			err = walk_pud_range(p4d, addr, next, walk);
 		if (err)
@@ -162,7 +157,7 @@ static int walk_pgd_range(unsigned long addr, unsigned long end,
 				break;
 			continue;
 		}
-		if (walk->p4d_entry || walk->pmd_entry || walk->pte_entry)
+		if (walk->pmd_entry || walk->pte_entry)
 			err = walk_p4d_range(pgd, addr, next, walk);
 		if (err)
 			break;
@@ -308,7 +303,7 @@ int walk_page_range(unsigned long start, unsigned long end,
 	if (!walk->mm)
 		return -EINVAL;
 
-	VM_BUG_ON_MM(!rwsem_is_locked(&walk->mm->mmap_sem), walk->mm);
+	VM_BUG_ON_MM(!rwsem_is_locked(&walk->mm->mmap_lock), walk->mm);
 
 	vma = find_vma(walk->mm, start);
 	do {
@@ -351,7 +346,7 @@ int walk_page_vma(struct vm_area_struct *vma, struct mm_walk *walk)
 	if (!walk->mm)
 		return -EINVAL;
 
-	VM_BUG_ON(!rwsem_is_locked(&walk->mm->mmap_sem));
+	VM_BUG_ON(!rwsem_is_locked(&walk->mm->mmap_lock));
 	VM_BUG_ON(!vma);
 	walk->vma = vma;
 	err = walk_page_test(vma->vm_start, vma->vm_end, walk);
