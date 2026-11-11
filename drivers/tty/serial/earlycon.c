@@ -53,22 +53,25 @@ static void __iomem * __init earlycon_map(resource_size_t paddr, size_t size)
 }
 
 static void __init earlycon_init(struct earlycon_device *device,
-				 const char *name)
+				 const struct earlycon_id *match)
 {
 	struct console *earlycon = device->con;
 	struct uart_port *port = &device->port;
+	const char *name = match->name;
+	size_t name_len = strnlen(name, sizeof(match->name));
 	const char *s;
 	size_t len;
 
 	/* scan backwards from end of string for first non-numeral */
-	for (s = name + strlen(name);
+	for (s = name + name_len;
 	     s > name && s[-1] >= '0' && s[-1] <= '9';
 	     s--)
 		;
-	if (*s)
+	if (s < name + name_len)
 		earlycon->index = simple_strtoul(s, NULL, 10);
-	len = s - name;
-	strlcpy(earlycon->name, name, min(len + 1, sizeof(earlycon->name)));
+	len = min_t(size_t, s - name, sizeof(earlycon->name) - 1);
+	memcpy(earlycon->name, name, len);
+	earlycon->name[len] = '\0';
 	earlycon->data = &early_console_dev;
 
 	if (port->iotype == UPIO_MEM || port->iotype == UPIO_MEM16 ||
@@ -138,7 +141,7 @@ static int __init register_earlycon(char *buf, const struct earlycon_id *match)
 	if (port->mapbase)
 		port->membase = earlycon_map(port->mapbase, 64);
 
-	earlycon_init(&early_console_dev, match->name);
+	earlycon_init(&early_console_dev, match);
 	err = match->setup(&early_console_dev, buf);
 	if (err < 0)
 		return err;
@@ -180,7 +183,7 @@ int __init setup_earlycon(char *buf)
 	for (p_match = __earlycon_table; p_match < __earlycon_table_end;
 	     p_match++) {
 		const struct earlycon_id *match = *p_match;
-		size_t len = strlen(match->name);
+		size_t len = strnlen(match->name, sizeof(match->name));
 
 		if (strncmp(buf, match->name, len))
 			continue;
@@ -289,7 +292,7 @@ int __init of_setup_earlycon(const struct earlycon_id *match,
 		strlcpy(early_console_dev.options, options,
 			sizeof(early_console_dev.options));
 	}
-	earlycon_init(&early_console_dev, match->name);
+	earlycon_init(&early_console_dev, match);
 	err = match->setup(&early_console_dev, options);
 	if (err < 0)
 		return err;
