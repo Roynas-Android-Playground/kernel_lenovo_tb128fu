@@ -1253,7 +1253,7 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 		// SAFETY: netd always starts after netbpfload
 		if (netbpfload_pid == 0)
 			netbpfload_pid = current->pid;
-		strcpy(tmp.release, "5.4.186");
+		strscpy(tmp.release, "5.10.199", sizeof(tmp.release));
 		pr_debug("fake uname: %s/%d release=%s\n",
 			 current->comm, current->pid, tmp.release);
 	}
