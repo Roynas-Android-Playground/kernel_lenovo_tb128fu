@@ -995,11 +995,12 @@ static void sgm4151x_charger_shutdown(struct i2c_client *client)
 	// ExtB oak-2318, tankaikun@wt, add 20220125, fix iic read/write return -13 when system suspend
 	mutex_destroy(&sgm_chg->resume_complete_lock);
 
+	free_irq(sgm_chg->client->irq, sgm_chg);
+
 	sysfs_remove_group(&sgm_chg->dev->kobj, &sgm4151x_attr_group);
 	cancel_delayed_work_sync(&sgm_chg->irq_work);
 	cancel_delayed_work_sync(&sgm_chg->monitor_work);
 
-	free_irq(sgm_chg->client->irq, NULL);
 	g_sgm_chg = NULL;
 }
 

@@ -1722,6 +1722,8 @@ static void bq2589x_charger_shutdown(struct i2c_client *client)
 	// ExtB oak-2318, tankaikun@wt, add 20220125, fix iic read/write return -13 when system suspend
 	mutex_destroy(&bq->resume_complete_lock);
 
+	free_irq(bq->client->irq, bq);
+
 	bq2589x_adc_stop(bq);
 	sysfs_remove_group(&bq->dev->kobj, &bq2589x_attr_group);
 	cancel_work_sync(&bq->adapter_in_work);
@@ -1730,7 +1732,6 @@ static void bq2589x_charger_shutdown(struct i2c_client *client)
 	cancel_delayed_work_sync(&bq->monitor_work);
 	cancel_delayed_work_sync(&bq->ico_work);
 
-	free_irq(bq->client->irq, NULL);
 	g_bq = NULL;
 }
 
