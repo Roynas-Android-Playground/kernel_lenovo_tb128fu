@@ -1712,6 +1712,11 @@
 			compatible = "qcom,msm-imem-diag-dload";
 			reg = <0xc8 0xc8>;
 		};
+
+		crash_reason@fe4 {
+			compatible = "qcom,msm-imem-crash_reason";
+			reg = <0xfe4 0x4>;
+		};
 	};
 
 	restart@440b000 {
