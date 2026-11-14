@@ -156,8 +156,6 @@
 #define DMA_RX_BUF_SIZE		(2048)
 #define UART_CONSOLE_RX_WM	(2)
 
-#define UART_VOTE_OFF_TIMEOUT_MS	5000
-
 enum uart_error_code {
 	UART_ERROR_DEFAULT,
 	UART_ERROR_INVALID_FW_LOADED,
@@ -248,9 +246,6 @@ struct msm_geni_serial_port {
 	struct workqueue_struct *wakeup_irq_wq;
 	struct delayed_work wakeup_irq_dwork;
 	struct completion wakeup_comp;
-	/* Auto vote off */
-	struct delayed_work vote_off_work;
-	unsigned long last_activity;
 };
 
 static void msm_geni_serial_worker(struct work_struct *work);
@@ -554,46 +549,6 @@ static void wait_for_transfers_inflight(struct uart_port *uport)
 	}
 }
 
-/*
- * Safety timer: drains leaked vote_clock_on references that BT HAL
- * never balanced with vote_clock_off. Runs in process context without
- * holding spinlock during PM calls (avoids ABBA deadlock).
- */
-static void msm_geni_serial_vote_off_work(struct work_struct *work)
-{
-	struct msm_geni_serial_port *port = container_of(work,
-			struct msm_geni_serial_port, vote_off_work.work);
-	struct uart_port *uport = &port->uport;
-	unsigned long elapsed;
-
-	/* Check if there's been recent activity */
-	elapsed = jiffies - port->last_activity;
-	if (elapsed < msecs_to_jiffies(UART_VOTE_OFF_TIMEOUT_MS)) {
-		schedule_delayed_work(&port->vote_off_work,
-				msecs_to_jiffies(UART_VOTE_OFF_TIMEOUT_MS) - elapsed);
-		return;
-	}
-
-	/* Timeout expired with no activity — drain one leaked vote */
-	if (port->ioctl_count > 0) {
-		IPC_LOG_MSG(port->ipc_log_pwr,
-			    "%s: Auto vote_clock_off after %dms, ioctl_count=%d\n",
-			    __func__, UART_VOTE_OFF_TIMEOUT_MS,
-			    port->ioctl_count);
-
-		port->ioctl_count--;
-		wait_for_transfers_inflight(uport);
-		msm_geni_serial_power_off(uport);
-	}
-
-	/* If more leaked votes remain, reschedule */
-	if (port->ioctl_count > 0) {
-		port->last_activity = jiffies;
-		schedule_delayed_work(&port->vote_off_work,
-				msecs_to_jiffies(UART_VOTE_OFF_TIMEOUT_MS));
-	}
-}
-
 static int vote_clock_on(struct uart_port *uport)
 {
 	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
@@ -614,13 +569,6 @@ static int vote_clock_on(struct uart_port *uport)
 	atomic_set(&port->check_wakeup_byte, 0);
 	complete(&port->wakeup_comp);
 	port->ioctl_count++;
-
-	/* Schedule safety timer to auto-drain leaked votes */
-	port->last_activity = jiffies;
-	if (!delayed_work_pending(&port->vote_off_work))
-		schedule_delayed_work(&port->vote_off_work,
-				msecs_to_jiffies(UART_VOTE_OFF_TIMEOUT_MS));
-
 	usage_count = atomic_read(&uport->dev->power.usage_count);
 	geni_ios = geni_read_reg_nolog(uport->membase, SE_GENI_IOS);
 	IPC_LOG_MSG(port->ipc_log_pwr,
@@ -1097,9 +1045,6 @@ static void msm_geni_serial_console_write(struct console *co, const char *s,
 		return;
 
 	uport = &port->uport;
-	if (!pm_runtime_active(uport->dev))
-		return;
-
 	if (oops_in_progress)
 		locked = spin_trylock_irqsave(&uport->lock, flags);
 	else
@@ -1327,13 +1272,26 @@ static int msm_geni_serial_prep_dma_tx(struct uart_port *uport)
 	return ret;
 }
 
-static void __msm_geni_serial_start_tx(struct uart_port *uport)
+static void msm_geni_serial_start_tx(struct uart_port *uport)
 {
 	unsigned int geni_m_irq_en;
 	struct msm_geni_serial_port *msm_port = GET_DEV_PORT(uport);
 	unsigned int geni_status;
 	unsigned int geni_ios;
 	static unsigned int ios_log_limit;
+
+	if (!uart_console(uport) && !pm_runtime_active(uport->dev)) {
+		IPC_LOG_MSG(msm_port->ipc_log_misc,
+				"%s.Putting in async RPM vote\n", __func__);
+		pm_runtime_get(uport->dev);
+		goto exit_start_tx;
+	}
+
+	if (!uart_console(uport)) {
+		IPC_LOG_MSG(msm_port->ipc_log_misc,
+				"%s.Power on.\n", __func__);
+		pm_runtime_get(uport->dev);
+	}
 
 	if (msm_port->xfer_mode == FIFO_MODE) {
 		geni_status = geni_read_reg_nolog(uport->membase,
@@ -1368,36 +1326,7 @@ check_flow_ctrl:
 						__func__, geni_ios);
 		ios_log_limit = 0;
 	}
-}
-
-static void msm_geni_serial_start_tx(struct uart_port *uport)
-{
-	struct msm_geni_serial_port *port = GET_DEV_PORT(uport);
-	struct msm_geni_serial_port *msm_port = GET_DEV_PORT(uport);
-
-	port->last_activity = jiffies;
-
-	/* Refresh timeout if active */
-	if (port->ioctl_count && !delayed_work_pending(&port->vote_off_work)) {
-		schedule_delayed_work(&port->vote_off_work,
-				msecs_to_jiffies(UART_VOTE_OFF_TIMEOUT_MS));
-	}
-
-	if (!uart_console(uport) && !pm_runtime_active(uport->dev)) {
-		IPC_LOG_MSG(msm_port->ipc_log_misc,
-				"%s.Putting in async RPM vote\n", __func__);
-		pm_runtime_get(uport->dev);
-		return;
-	}
-
-	if (!uart_console(uport)) {
-		IPC_LOG_MSG(msm_port->ipc_log_misc,
-				"%s.Power on.\n", __func__);
-		pm_runtime_get(uport->dev);
-	}
-
-	__msm_geni_serial_start_tx(uport);
-
+exit_start_tx:
 	if (!uart_console(uport))
 		msm_geni_serial_power_off(uport);
 }
@@ -2381,7 +2310,6 @@ static void msm_geni_wakeup_work(struct work_struct *work)
 {
 	struct msm_geni_serial_port *port;
 	struct uart_port *uport;
-	unsigned long flags;
 
 	port = container_of(work, struct msm_geni_serial_port,
 			    wakeup_irq_dwork.work);
@@ -2406,17 +2334,7 @@ static void msm_geni_wakeup_work(struct work_struct *work)
 		if (!uport->state->port.tty)
 			return;
 	}
-
-	/*
-	 * Reuse the pm_runtime reference from wakeup as a persistent vote.
-	 * Convert to ioctl vote and schedule 5s timer.
-	 */
-	spin_lock_irqsave(&uport->lock, flags);
-	port->ioctl_count++;
-	port->last_activity = jiffies;
-	schedule_delayed_work(&port->vote_off_work,
-			msecs_to_jiffies(UART_VOTE_OFF_TIMEOUT_MS));
-	spin_unlock_irqrestore(&uport->lock, flags);
+	msm_geni_serial_power_off(uport);
 }
 
 static irqreturn_t msm_geni_serial_isr(int isr, void *dev)
@@ -3775,8 +3693,6 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 			goto exit_wakeup_unregister;
 		}
 		INIT_WORK(&dev_port->work, msm_geni_serial_worker);
-		/* Initialize auto vote_clock_off delayed work */
-		INIT_DELAYED_WORK(&dev_port->vote_off_work, msm_geni_serial_vote_off_work);
 	}
 
 	ret = uart_add_one_port(drv, uport);
@@ -3819,7 +3735,6 @@ static int msm_geni_serial_remove(struct platform_device *pdev)
 		wakeup_source_unregister(port->geni_wake);
 		port->geni_wake = NULL;
 		flush_workqueue(port->qwork);
-		cancel_delayed_work_sync(&port->vote_off_work);
 		destroy_workqueue(port->qwork);
 	}
 	if (port->wakeup_irq > 0)
@@ -3911,7 +3826,6 @@ static int msm_geni_serial_runtime_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct msm_geni_serial_port *port = platform_get_drvdata(pdev);
-	unsigned long flags;
 	int ret = 0;
 
 	/*
@@ -3939,14 +3853,6 @@ static int msm_geni_serial_runtime_resume(struct device *dev)
 	start_rx_sequencer(&port->uport);
 	/* Ensure that the Rx is running before enabling interrupts */
 	mb();
-
-	/* Replay stalled TX data if needed */
-	if (uart_circ_chars_pending(&port->uport.state->xmit)) {
-		spin_lock_irqsave(&port->uport.lock, flags);
-		__msm_geni_serial_start_tx(&port->uport);
-		spin_unlock_irqrestore(&port->uport.lock, flags);
-	}
-
 	/* Enable interrupt */
 	enable_irq(port->uport.irq);
 
