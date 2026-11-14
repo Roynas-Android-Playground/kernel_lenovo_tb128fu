@@ -46,10 +46,12 @@
 #define IMEM_DL_TYPE_PROP "qcom,msm-imem-dload-type"
 
 #define KASLR_OFFSET_PROP "qcom,msm-imem-kaslr_offset"
+#define CRASH_REASON_PROP "qcom,msm-imem-crash_reason"
 #define KASLR_OFFSET_BIT_MASK	0x00000000FFFFFFFF
 
 static int restart_mode;
 static void *restart_reason, *dload_type_addr;
+static void __iomem *crash_reason_addr;
 static bool scm_pmic_arbiter_disable_supported;
 static bool scm_deassert_ps_hold_supported;
 /* Download mode master kill-switch */
@@ -132,10 +134,23 @@ static struct kobj_type reset_ktype = {
 	.sysfs_ops	= &reset_sysfs_ops,
 };
 
+void msm_set_crash_reason(u32 reason)
+{
+	if (crash_reason_addr)
+		__raw_writel(reason, crash_reason_addr);
+}
+EXPORT_SYMBOL(msm_set_crash_reason);
+
 static int panic_prep_restart(struct notifier_block *this,
 			      unsigned long event, void *ptr)
 {
 	in_panic = 1;
+
+	if (ptr && strstr(ptr, "sysrq triggered crash"))
+		msm_set_crash_reason(CRASH_REASON_USER_PANIC);
+	else
+		msm_set_crash_reason(CRASH_REASON_PANIC);
+
 	return NOTIFY_DONE;
 }
 
@@ -294,6 +309,8 @@ static void setup_dload_mode_support(void)
 	emergency_dload_mode_addr = map_prop_mem(EDL_MODE_PROP);
 
 	store_kaslr_offset();
+
+	crash_reason_addr = map_prop_mem(CRASH_REASON_PROP);
 
 	dload_type_addr = map_prop_mem(IMEM_DL_TYPE_PROP);
 	if (!dload_type_addr)
@@ -494,6 +511,9 @@ static void msm_restart_prepare(const char *cmd)
 
 	set_dload_mode(download_mode &&
 			(in_panic || restart_mode == RESTART_DLOAD));
+
+	if (!in_panic)
+		msm_set_crash_reason(CRASH_REASON_CMD_REBOOT);
 
 	if (qpnp_pon_check_hard_reset_stored()) {
 		/* Set warm reset as true when device is in dload mode */

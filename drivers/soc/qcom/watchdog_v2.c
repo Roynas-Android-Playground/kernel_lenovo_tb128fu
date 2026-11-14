@@ -26,6 +26,7 @@
 #include <soc/qcom/scm.h>
 #include <soc/qcom/memory_dump.h>
 #include <soc/qcom/minidump.h>
+#include <soc/qcom/restart.h>
 #include <soc/qcom/watchdog.h>
 #include <linux/dma-mapping.h>
 #include <linux/sched/clock.h>
@@ -763,6 +764,7 @@ static irqreturn_t wdog_bark_handler(int irq, void *dev_id)
 	if (wdog_dd->do_ipi_ping)
 		dump_cpu_alive_mask(wdog_dd);
 
+	msm_set_crash_reason(CRASH_REASON_WDT_BARK);
 	msm_trigger_wdog_bite();
 	return IRQ_HANDLED;
 }
